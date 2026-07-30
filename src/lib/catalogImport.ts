@@ -5,7 +5,6 @@ import { supabase } from './supabase'
 export interface CatalogImportRow {
   Product?: string
   Type?: string
-  'Width (in)'?: number
   'Size (in)'?: number
   'Price (Rs.)'?: number
   'Opening stock'?: number
@@ -25,23 +24,21 @@ interface Row {
 }
 
 // Reconciles an uploaded catalog sheet against the live catalog: creates products,
-// product_types, and variants that don't exist yet (matched by name/width/size), and
+// product_types, and variants that don't exist yet (matched by name/size), and
 // skips variants that already exist rather than overwriting their price. New variants
 // with a positive "Opening stock" get an opening add_stock entry, same as a manual
 // Add stock — existing variants never touch their stock, since they already have a ledger.
 export async function importCatalogRows(rows: CatalogImportRow[]): Promise<CatalogImportSummary> {
   const summary: CatalogImportSummary = { productsCreated: 0, typesCreated: 0, variantsCreated: 0, variantsSkipped: 0, errors: [] }
 
-  const [{ data: products }, { data: types }, { data: variants }, { data: widths }, { data: sizes }] = await Promise.all([
+  const [{ data: products }, { data: types }, { data: variants }, { data: sizes }] = await Promise.all([
     supabase.from('products').select('id, name'),
-    supabase.from('product_types').select('id, product_id, type_name, width_id'),
+    supabase.from('product_types').select('id, product_id, type_name'),
     supabase.from('variants').select('id, type_id, size_id'),
-    supabase.from('widths').select('id, value'),
     supabase.from('sizes').select('id, value')
   ])
 
   const productByName = new Map<string, Row>((products ?? []).map((p) => [p.name.toLowerCase(), p as Row]))
-  const widthByValue = new Map<number, Row>((widths ?? []).map((w) => [w.value, w as Row]))
   const sizeByValue = new Map<number, Row>((sizes ?? []).map((s) => [s.value, s as Row]))
   const typeByKey = new Map<string, Row>((types ?? []).map((t) => [`${t.product_id}::${t.type_name.toLowerCase()}`, t as Row]))
   const variantByKey = new Map<string, Row>((variants ?? []).map((v) => [`${v.type_id}::${v.size_id}`, v as Row]))
@@ -51,13 +48,12 @@ export async function importCatalogRows(rows: CatalogImportRow[]): Promise<Catal
     const line = i + 2 // header is row 1 in the spreadsheet
     const productName = row['Product']?.toString().trim()
     const typeName = row['Type']?.toString().trim()
-    const width = Number(row['Width (in)'])
     const size = Number(row['Size (in)'])
     const price = Number(row['Price (Rs.)'])
     const openingStock = row['Opening stock'] ? Math.floor(Number(row['Opening stock'])) : 0
 
-    if (!productName || !typeName || !Number.isFinite(width) || !Number.isFinite(size) || !Number.isFinite(price)) {
-      summary.errors.push(`Row ${line}: missing or invalid Product/Type/Width (in)/Size (in)/Price (Rs.)`)
+    if (!productName || !typeName || !Number.isFinite(size) || !Number.isFinite(price)) {
+      summary.errors.push(`Row ${line}: missing or invalid Product/Type/Size (in)/Price (Rs.)`)
       continue
     }
 
@@ -69,14 +65,6 @@ export async function importCatalogRows(rows: CatalogImportRow[]): Promise<Catal
         product = data as Row
         productByName.set(productName.toLowerCase(), product)
         summary.productsCreated++
-      }
-
-      let widthRow = widthByValue.get(width)
-      if (!widthRow) {
-        const { data, error } = await supabase.from('widths').insert({ value: width }).select().single()
-        if (error) throw error
-        widthRow = data as Row
-        widthByValue.set(width, widthRow)
       }
 
       let sizeRow = sizeByValue.get(size)
@@ -92,7 +80,7 @@ export async function importCatalogRows(rows: CatalogImportRow[]): Promise<Catal
       if (!type) {
         const { data, error } = await supabase
           .from('product_types')
-          .insert({ product_id: product.id, type_name: typeName, width_id: widthRow.id })
+          .insert({ product_id: product.id, type_name: typeName })
           .select()
           .single()
         if (error) throw error

@@ -32,7 +32,10 @@ export const theme = createTheme({
     text: { primary: '#262420', secondary: '#6B6860' },
     divider: '#DAD6CC'
   },
-  shape: { borderRadius: 10 },
+  // Sharp, squared-off corners throughout — no soft "rounded rectangle" cards or
+  // pill-shaped buttons/chips. Small radius (4px) keeps edges crisp without looking
+  // like an unstyled 90s form.
+  shape: { borderRadius: 4 },
   typography: {
     fontFamily: '"Inter", "Helvetica", "Arial", sans-serif',
     h1: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
@@ -46,17 +49,45 @@ export const theme = createTheme({
   components: {
     MuiButton: {
       styleOverrides: {
-        root: { textTransform: 'none', fontWeight: 600, borderRadius: 8 }
+        root: { textTransform: 'none', fontWeight: 600, borderRadius: 4 },
+        contained: { boxShadow: 'none', '&:hover': { boxShadow: 'none' } }
       }
     },
     MuiPaper: {
+      defaultProps: { elevation: 0 },
       styleOverrides: {
-        root: { backgroundImage: 'none' }
+        root: {
+          backgroundImage: 'none',
+          boxShadow: '0 1px 2px rgba(38,36,32,0.05), 0 2px 6px rgba(38,36,32,0.06)'
+        }
+      }
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: { borderRadius: 4 }
+      }
+    },
+    MuiChip: {
+      // MUI's default Chip is a fully rounded pill regardless of theme.shape —
+      // square it off into a small tag instead.
+      styleOverrides: {
+        root: { borderRadius: 4, fontWeight: 600 }
       }
     },
     MuiAppBar: {
       styleOverrides: {
-        root: { backgroundColor: '#262420', color: '#FAF8F4' }
+        root: { backgroundColor: '#262420', color: '#FAF8F4', borderBottom: '1px solid rgba(255,255,255,0.08)' }
+      }
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        head: {
+          fontWeight: 700,
+          fontSize: '0.7rem',
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+          color: '#6B6860'
+        }
       }
     }
   }

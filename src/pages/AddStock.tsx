@@ -13,7 +13,7 @@ import {
   Link as MuiLink
 } from '@mui/material'
 import { supabase, formatMoney, fetchActiveVariants } from '../lib/supabase'
-import { VariantWithContext, formatVariantLabel, formatWidth, formatSize } from '../types'
+import { VariantWithContext, formatVariantLabel, formatSize } from '../types'
 
 export default function AddStock() {
   const navigate = useNavigate()
@@ -70,7 +70,7 @@ export default function AddStock() {
     variants
       .filter((v) => v.product_id === pickProductId)
       .forEach((v) => {
-        if (!map.has(v.type_id)) map.set(v.type_id, { id: v.type_id, label: `${v.type_name} · ${formatWidth(v.width)}` })
+        if (!map.has(v.type_id)) map.set(v.type_id, { id: v.type_id, label: v.type_name })
       })
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [variants, pickProductId])

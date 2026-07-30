@@ -5,22 +5,10 @@ export interface Product {
   active: boolean
 }
 
-export interface Width {
-  id: string
-  value: number // plain inches, e.g. 1.5, 2, 2.5, 3
-  active: boolean
-}
-
-// Displays a width value with its unit, e.g. formatWidth(1.5) -> '1.5"'
-export function formatWidth(value: number): string {
-  return `${value}"`
-}
-
 export interface ProductType {
   id: string
   product_id: string
   type_name: string
-  width_id: string
   active: boolean
 }
 
@@ -48,7 +36,6 @@ export interface LowStockRow {
   variant_id: string
   product_name: string
   type_name: string
-  width: number
   size: number
   current_stock: number
   unit_price: number
@@ -106,16 +93,14 @@ export interface VariantWithContext {
   current_stock: number
   active: boolean
   type_name: string
-  width_id: string
-  width: number // resolved from widths.value
   product_id: string
   product_name: string
 }
 
-// Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp 1.5" / 2""
+// Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp / 2""
 // Also used as the frozen item_snapshot on sale_items.
 export function formatVariantLabel(v: VariantWithContext): string {
-  return `${v.product_name} · ${v.type_name} ${formatWidth(v.width)} / ${formatSize(v.size)}`
+  return `${v.product_name} · ${v.type_name} / ${formatSize(v.size)}`
 }
 
 export interface Settings {

@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Button, Alert, Stack } from '@mui/material'
-import { Width, formatWidth } from '../../types'
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Alert, Stack } from '@mui/material'
 
 export interface TypeDialogValues {
   type_name: string
-  width_id: string
 }
 
 export default function TypeDialog({
   open,
   productName,
-  widths,
   initial,
   saving,
   error,
@@ -19,7 +16,6 @@ export default function TypeDialog({
 }: {
   open: boolean
   productName: string
-  widths: Width[]
   initial?: TypeDialogValues
   saving: boolean
   error: string | null
@@ -27,16 +23,12 @@ export default function TypeDialog({
   onSave: (values: TypeDialogValues) => void
 }) {
   const [typeName, setTypeName] = useState(initial?.type_name ?? '')
-  const [widthId, setWidthId] = useState(initial?.width_id ?? '')
 
   useEffect(() => {
-    if (open) {
-      setTypeName(initial?.type_name ?? '')
-      setWidthId(initial?.width_id ?? widths[0]?.id ?? '')
-    }
-  }, [open, initial, widths])
+    if (open) setTypeName(initial?.type_name ?? '')
+  }, [open, initial])
 
-  const valid = typeName.trim().length > 0 && widthId.length > 0
+  const valid = typeName.trim().length > 0
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
@@ -52,22 +44,11 @@ export default function TypeDialog({
             autoFocus
             fullWidth
           />
-          <TextField select label="Width" value={widthId} onChange={(e) => setWidthId(e.target.value)} fullWidth>
-            {widths.map((w) => (
-              <MenuItem key={w.id} value={w.id}>
-                {formatWidth(w.value)}
-              </MenuItem>
-            ))}
-          </TextField>
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          disabled={!valid || saving}
-          onClick={() => onSave({ type_name: typeName.trim(), width_id: widthId })}
-        >
+        <Button variant="contained" disabled={!valid || saving} onClick={() => onSave({ type_name: typeName.trim() })}>
           Save
         </Button>
       </DialogActions>

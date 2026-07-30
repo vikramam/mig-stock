@@ -15,13 +15,13 @@ import {
   ListItemText,
   IconButton
 } from '@mui/material'
-import DashboardIcon from '@mui/icons-material/GridViewRounded'
-import SellIcon from '@mui/icons-material/PointOfSaleRounded'
-import InventoryIcon from '@mui/icons-material/Inventory2Rounded'
-import BarChartIcon from '@mui/icons-material/BarChartRounded'
-import WarningIcon from '@mui/icons-material/ReportProblemRounded'
-import SettingsIcon from '@mui/icons-material/SettingsRounded'
-import LogoutIcon from '@mui/icons-material/LogoutRounded'
+import DashboardIcon from '@mui/icons-material/GridViewSharp'
+import SellIcon from '@mui/icons-material/PointOfSaleSharp'
+import InventoryIcon from '@mui/icons-material/Inventory2Sharp'
+import BarChartIcon from '@mui/icons-material/BarChartSharp'
+import WarningIcon from '@mui/icons-material/ReportProblemSharp'
+import SettingsIcon from '@mui/icons-material/SettingsSharp'
+import LogoutIcon from '@mui/icons-material/LogoutSharp'
 import { useTheme } from '@mui/material/styles'
 import { useAuth } from '../lib/auth'
 

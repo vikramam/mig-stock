@@ -19,7 +19,7 @@ import {
   CircularProgress,
   IconButton
 } from '@mui/material'
-import FileDownloadRounded from '@mui/icons-material/FileDownloadRounded'
+import FileDownloadSharp from '@mui/icons-material/FileDownloadSharp'
 import { supabase, formatMoney } from '../lib/supabase'
 import { Sale, PaymentStatus } from '../types'
 import SaleDetailDialog from '../components/sale/SaleDetailDialog'
@@ -207,7 +207,7 @@ export default function AllSales() {
                     aria-label="Download receipt"
                     sx={{ flexShrink: 0 }}
                   >
-                    {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadRounded fontSize="small" />}
+                    {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadSharp fontSize="small" />}
                   </IconButton>
                 </Stack>
 
@@ -303,7 +303,7 @@ export default function AllSales() {
                         onClick={(e) => void handleDownloadRow(e, sale.id)}
                         aria-label="Download receipt"
                       >
-                        {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadRounded fontSize="small" />}
+                        {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadSharp fontSize="small" />}
                       </IconButton>
                     </TableCell>
                   </TableRow>

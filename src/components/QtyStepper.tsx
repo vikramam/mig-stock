@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Stack, IconButton, TextField } from '@mui/material'
-import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded'
-import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import RemoveSharpIcon from '@mui/icons-material/RemoveSharp'
+import AddSharpIcon from '@mui/icons-material/AddSharp'
 
 // Quantities are always whole units (no fractional stock). The text field keeps its own
 // local string while typing — clamping on every keystroke (as a plain controlled number
@@ -32,7 +32,7 @@ export default function QtyStepper({
   return (
     <Stack direction="row" alignItems="center" gap={0.5}>
       <IconButton size={size} disabled={qty <= 1} onClick={() => commit(String(qty - 1))}>
-        <RemoveRoundedIcon fontSize="small" />
+        <RemoveSharpIcon fontSize="small" />
       </IconButton>
       <TextField
         type="text"
@@ -46,7 +46,7 @@ export default function QtyStepper({
         inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', style: { textAlign: 'center', width: 36 } }}
       />
       <IconButton size={size} onClick={() => commit(String(qty + 1))}>
-        <AddRoundedIcon fontSize="small" />
+        <AddSharpIcon fontSize="small" />
       </IconButton>
     </Stack>
   )

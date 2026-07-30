@@ -35,20 +35,18 @@ interface VariantContextRow {
   sizes: { value: number } | null
   product_types: {
     type_name: string
-    width_id: string
     product_id: string
-    widths: { value: number } | null
     products: { name: string } | null
   } | null
 }
 
-// Fetches active variants flattened with their product/type/width/size context — used
+// Fetches active variants flattened with their product/type/size context — used
 // anywhere a cashier needs to search variants by product/type/size (Add stock, New sale).
 export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[]; error: string | null }> {
   const { data, error } = await supabase
     .from('variants')
     .select(
-      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types(type_name, width_id, product_id, widths(value), products(name))'
+      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types(type_name, product_id, products(name))'
     )
     .eq('active', true)
 
@@ -65,8 +63,6 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
       current_stock: v.current_stock,
       active: v.active,
       type_name: v.product_types!.type_name,
-      width_id: v.product_types!.width_id,
-      width: v.product_types!.widths?.value ?? 0,
       product_id: v.product_types!.product_id,
       product_name: v.product_types!.products?.name ?? 'Unknown product'
     }))

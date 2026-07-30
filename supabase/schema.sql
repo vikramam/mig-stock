@@ -20,6 +20,8 @@ create table products (
 
 -- Master list of clamp widths (inches). Plain numeric — the "in" unit label
 -- is appended only in the UI, never stored. Edit the seed range below to match yours.
+-- NOTE: retired from the app's UI/flow (kept only so historical width_id values on
+-- product_types stay valid) — width_id below is nullable, new types don't set one.
 create table widths (
   id      uuid primary key default gen_random_uuid(),
   value   numeric(4,1) not null unique,   -- e.g. 1.5, 2, 2.5, 3
@@ -33,7 +35,7 @@ create table product_types (
   id          uuid primary key default gen_random_uuid(),
   product_id  uuid not null references products(id) on delete restrict,
   type_name   text not null,                 -- e.g. "Cruiser Clamp"
-  width_id    uuid not null references widths(id) on delete restrict,
+  width_id    uuid references widths(id) on delete restrict,  -- retired, see note above
   active      boolean not null default true,
   created_at  timestamptz not null default now(),
   unique (product_id, type_name)
@@ -362,13 +364,11 @@ select
   v.id as variant_id,
   p.name as product_name,
   pt.type_name,
-  w.value as width,
   s.value as size,
   v.current_stock,
   v.unit_price
 from variants v
 join product_types pt on pt.id = v.type_id
-join widths w on w.id = pt.width_id
 join sizes s on s.id = v.size_id
 join products p on p.id = pt.product_id
 where v.current_stock < (select low_stock_threshold from settings where id = 1)

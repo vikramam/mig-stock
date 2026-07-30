@@ -22,12 +22,12 @@ import {
   CircularProgress,
   Paper
 } from '@mui/material'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMoreRounded'
-import AddIcon from '@mui/icons-material/AddRounded'
-import EditIcon from '@mui/icons-material/EditRounded'
-import InventoryIcon from '@mui/icons-material/Inventory2Rounded'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMoreSharp'
+import AddIcon from '@mui/icons-material/AddSharp'
+import EditIcon from '@mui/icons-material/EditSharp'
+import InventoryIcon from '@mui/icons-material/Inventory2Sharp'
 import { supabase, formatMoney } from '../lib/supabase'
-import { Product, ProductType, Variant, Width, Size, formatWidth, formatSize } from '../types'
+import { Product, ProductType, Variant, Size, formatSize } from '../types'
 import ProductDialog from '../components/stock/ProductDialog'
 import TypeDialog from '../components/stock/TypeDialog'
 import VariantDialog from '../components/stock/VariantDialog'
@@ -36,7 +36,6 @@ interface VariantRow extends Variant {
   sizes: { value: number } | null
 }
 interface TypeRow extends ProductType {
-  widths: { value: number } | null
   variants: VariantRow[]
 }
 interface ProductRow extends Product {
@@ -46,7 +45,6 @@ interface ProductRow extends Product {
 export default function StockManagement() {
   const navigate = useNavigate()
   const [products, setProducts] = useState<ProductRow[]>([])
-  const [widths, setWidths] = useState<Width[]>([])
   const [sizes, setSizes] = useState<Size[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -78,7 +76,7 @@ export default function StockManagement() {
     setLoading(true)
     const { data, error } = await supabase
       .from('products')
-      .select('*, product_types(*, widths(value), variants(*, sizes(value)))')
+      .select('*, product_types(*, variants(*, sizes(value)))')
       .order('created_at', { ascending: true })
       .order('created_at', { ascending: true, foreignTable: 'product_types' })
       .order('created_at', { ascending: true, foreignTable: 'product_types.variants' })
@@ -89,11 +87,7 @@ export default function StockManagement() {
   }
 
   async function loadMasters() {
-    const [{ data: widthsData }, { data: sizesData }] = await Promise.all([
-      supabase.from('widths').select('*').eq('active', true).order('value', { ascending: true }),
-      supabase.from('sizes').select('*').eq('active', true).order('value', { ascending: true })
-    ])
-    setWidths((widthsData ?? []) as Width[])
+    const { data: sizesData } = await supabase.from('sizes').select('*').eq('active', true).order('value', { ascending: true })
     setSizes((sizesData ?? []) as Size[])
   }
 
@@ -128,7 +122,7 @@ export default function StockManagement() {
   }
 
   // ---------- Product type ----------
-  async function saveType(values: { type_name: string; width_id: string }) {
+  async function saveType(values: { type_name: string }) {
     setSaving(true)
     setDialogError(null)
     const { editing, productId } = typeDialog
@@ -303,9 +297,7 @@ export default function StockManagement() {
                       <Paper key={type.id} variant="outlined" sx={{ p: 1.5 }}>
                         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
                           <Stack direction="row" alignItems="center" gap={1}>
-                            <Typography variant="subtitle2">
-                              {type.type_name} · {formatWidth(type.widths?.value ?? 0)}
-                            </Typography>
+                            <Typography variant="subtitle2">{type.type_name}</Typography>
                             {!type.active && <Chip size="small" label="Inactive" />}
                           </Stack>
                           <Stack direction="row" alignItems="center" gap={0.5}>
@@ -482,8 +474,7 @@ export default function StockManagement() {
       <TypeDialog
         open={typeDialog.open}
         productName={typeDialog.productName ?? ''}
-        widths={widths}
-        initial={typeDialog.editing ? { type_name: typeDialog.editing.type_name, width_id: typeDialog.editing.width_id } : undefined}
+        initial={typeDialog.editing ? { type_name: typeDialog.editing.type_name } : undefined}
         saving={saving}
         error={dialogError}
         onClose={() => {

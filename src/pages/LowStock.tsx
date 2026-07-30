@@ -19,7 +19,7 @@ import {
   Switch
 } from '@mui/material'
 import { supabase, formatMoney } from '../lib/supabase'
-import { LowStockRow, formatWidth, formatSize } from '../types'
+import { LowStockRow, formatSize } from '../types'
 
 export default function LowStock() {
   const navigate = useNavigate()
@@ -143,7 +143,6 @@ export default function LowStock() {
               <TableRow>
                 <TableCell>Product</TableCell>
                 <TableCell>Type</TableCell>
-                <TableCell>Width</TableCell>
                 <TableCell>Size</TableCell>
                 <TableCell align="right">Stock</TableCell>
                 <TableCell align="right">Price</TableCell>
@@ -155,7 +154,6 @@ export default function LowStock() {
                 <TableRow key={row.variant_id}>
                   <TableCell>{row.product_name}</TableCell>
                   <TableCell>{row.type_name}</TableCell>
-                  <TableCell>{formatWidth(row.width)}</TableCell>
                   <TableCell>{formatSize(row.size)}</TableCell>
                   <TableCell align="right">
                     <Typography variant="mono" color={row.current_stock <= 0 ? 'error.main' : 'warning.main'}>

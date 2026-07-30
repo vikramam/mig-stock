@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Alert, Stack, Box, CircularProgress } from '@mui/material'
-import ImageIcon from '@mui/icons-material/ImageRounded'
+import ImageIcon from '@mui/icons-material/ImageSharp'
 import { uploadProductImage } from '../../lib/supabase'
 
 export interface ProductDialogValues {

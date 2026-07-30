@@ -19,10 +19,10 @@ import {
   IconButton,
   Divider
 } from '@mui/material'
-import DeleteIcon from '@mui/icons-material/DeleteOutlineRounded'
-import PersonAddIcon from '@mui/icons-material/PersonAddAltRounded'
+import DeleteIcon from '@mui/icons-material/DeleteOutlineSharp'
+import PersonAddIcon from '@mui/icons-material/PersonAddAltSharp'
 import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants } from '../lib/supabase'
-import { Customer, VariantWithContext, formatVariantLabel, formatWidth, formatSize } from '../types'
+import { Customer, VariantWithContext, formatVariantLabel, formatSize } from '../types'
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
 import ReceiptDialog from '../components/sale/ReceiptDialog'
 import QtyStepper from '../components/QtyStepper'
@@ -138,7 +138,7 @@ export default function NewSale() {
     variants
       .filter((v) => v.product_id === pickProductId)
       .forEach((v) => {
-        if (!map.has(v.type_id)) map.set(v.type_id, { id: v.type_id, label: `${v.type_name} · ${formatWidth(v.width)}` })
+        if (!map.has(v.type_id)) map.set(v.type_id, { id: v.type_id, label: v.type_name })
       })
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [variants, pickProductId])
@@ -373,7 +373,7 @@ export default function NewSale() {
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {line.variant.product_name} · {line.variant.type_name} {formatWidth(line.variant.width)}
+                        {line.variant.product_name} · {line.variant.type_name}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Size {formatSize(line.variant.size)} · {formatMoney(line.variant.unit_price)} each
@@ -415,7 +415,7 @@ export default function NewSale() {
                   {cart.map((line) => (
                     <TableRow key={line.variant.id}>
                       <TableCell>
-                        {line.variant.product_name} · {line.variant.type_name} {formatWidth(line.variant.width)}
+                        {line.variant.product_name} · {line.variant.type_name}
                         {line.qty > line.variant.current_stock && (
                           <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
                             Only {line.variant.current_stock} in stock

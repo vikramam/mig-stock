@@ -20,8 +20,8 @@ import {
   CircularProgress,
   IconButton
 } from '@mui/material'
-import CloseIcon from '@mui/icons-material/CloseRounded'
-import ReceiptIcon from '@mui/icons-material/ReceiptLongRounded'
+import CloseIcon from '@mui/icons-material/CloseSharp'
+import ReceiptIcon from '@mui/icons-material/ReceiptLongSharp'
 import { supabase, formatMoney, parseRupeesToPaise } from '../../lib/supabase'
 import { Sale, SaleItem, Payment } from '../../types'
 import ReceiptDialog from './ReceiptDialog'
