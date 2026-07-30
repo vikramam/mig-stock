@@ -25,6 +25,7 @@ import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants } from '
 import { Customer, VariantWithContext, formatVariantLabel, formatWidth, formatSize } from '../types'
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
 import ReceiptDialog from '../components/sale/ReceiptDialog'
+import QtyStepper from '../components/QtyStepper'
 
 interface CartLine {
   variant: VariantWithContext
@@ -388,14 +389,7 @@ export default function NewSale() {
                     </IconButton>
                   </Stack>
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
-                    <TextField
-                      label="Qty"
-                      type="number"
-                      size="small"
-                      inputProps={{ step: '1', min: 1, style: { width: 64 } }}
-                      value={line.qty}
-                      onChange={(e) => updateQty(line.variant.id, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                    />
+                    <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
                     <Typography variant="mono" sx={{ fontWeight: 600 }}>
                       {formatMoney(line.qty * line.variant.unit_price)}
                     </Typography>
@@ -433,13 +427,7 @@ export default function NewSale() {
                         <Typography variant="mono">{formatMoney(line.variant.unit_price)}</Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <TextField
-                          type="number"
-                          size="small"
-                          inputProps={{ step: '1', min: 1, style: { textAlign: 'right', width: 56 } }}
-                          value={line.qty}
-                          onChange={(e) => updateQty(line.variant.id, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
-                        />
+                        <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="mono">{formatMoney(line.qty * line.variant.unit_price)}</Typography>

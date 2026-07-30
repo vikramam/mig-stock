@@ -1,7 +1,12 @@
-import { forwardRef } from 'react'
+import { forwardRef, useState } from 'react'
 import { Box, Typography, Stack, Divider } from '@mui/material'
 import { formatMoney } from '../../lib/supabase'
 import { PaymentStatus } from '../../types'
+
+// Place your logo file at public/logo.png (create the file there — it's served as
+// /logo.png both in dev and in the deployed build). Same-origin, so no CORS handling
+// needed for html2canvas to capture it, unlike the Storage-hosted product images below.
+const LOGO_SRC = '/logo.png'
 
 export interface ReceiptItem {
   label: string
@@ -25,8 +30,21 @@ export interface ReceiptData {
 }
 
 const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Receipt({ data }, ref) {
+  const [logoFailed, setLogoFailed] = useState(false)
+
   return (
     <Box ref={ref} sx={{ width: 380, mx: 'auto', bgcolor: '#FFFFFF', color: '#1B1710', p: 3 }}>
+      {!logoFailed && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+          <Box
+            component="img"
+            src={LOGO_SRC}
+            alt={data.companyName}
+            onError={() => setLogoFailed(true)}
+            sx={{ maxHeight: 56, maxWidth: 220, objectFit: 'contain' }}
+          />
+        </Box>
+      )}
       <Typography variant="h5" align="center" sx={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }}>
         {data.companyName}
       </Typography>

@@ -32,7 +32,6 @@ export default function Settings() {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [companyName, setCompanyName] = useState('')
-  const [logoUrl, setLogoUrl] = useState('')
   const [currency, setCurrency] = useState('')
   const [currencyPrefix, setCurrencyPrefix] = useState('')
   const [receiptFooter, setReceiptFooter] = useState('')
@@ -67,7 +66,6 @@ export default function Settings() {
     }
 
     setCompanyName(data.company_name ?? '')
-    setLogoUrl(data.logo_url ?? '')
     setCurrency(data.currency ?? '')
     setCurrencyPrefix(data.currency_prefix ?? '')
     setReceiptFooter(data.receipt_footer ?? '')
@@ -93,7 +91,6 @@ export default function Settings() {
       .from('settings')
       .update({
         company_name: companyName.trim(),
-        logo_url: logoUrl.trim() || null,
         currency: currency.trim(),
         currency_prefix: currencyPrefix.trim(),
         receipt_footer: receiptFooter.trim() || null,
@@ -215,13 +212,6 @@ export default function Settings() {
           )}
 
           <TextField label="Company name" value={companyName} onChange={(e) => setCompanyName(e.target.value)} fullWidth />
-
-          <TextField
-            label="Logo URL (optional)"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            fullWidth
-          />
 
           <Stack direction="row" gap={2}>
             <TextField label="Currency code" value={currency} onChange={(e) => setCurrency(e.target.value)} fullWidth />

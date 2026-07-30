@@ -235,9 +235,15 @@ export default function StockManagement() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }} flexWrap="wrap" gap={1}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+        gap={1.5}
+      >
         <Typography variant="h4">Stock</Typography>
-        <Stack direction="row" alignItems="center" gap={1}>
+        <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
           <FormControlLabel
             control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
             label="Show inactive"
@@ -332,39 +338,38 @@ export default function StockManagement() {
                             No variants yet.
                           </Typography>
                         ) : (
-                          <Table size="small" sx={{ mt: 1 }}>
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Size</TableCell>
-                                <TableCell align="right">Price</TableCell>
-                                <TableCell align="right">Stock</TableCell>
-                                <TableCell align="right">Active</TableCell>
-                                <TableCell align="right">Edit</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
+                          <>
+                            {/* Mobile: compact row list — a 5-column table is too tight on a phone */}
+                            <Stack sx={{ mt: 1, display: { xs: 'flex', sm: 'none' } }}>
                               {visibleVariants.map((variant) => (
-                                <TableRow key={variant.id} sx={{ opacity: variant.active ? 1 : 0.5 }}>
-                                  <TableCell>{formatSize(variant.sizes?.value ?? 0)}</TableCell>
-                                  <TableCell align="right">
-                                    <Typography variant="mono">{formatMoney(variant.unit_price)}</Typography>
-                                  </TableCell>
-                                  <TableCell align="right">
-                                    <Typography
-                                      variant="mono"
-                                      color={variant.current_stock <= 0 ? 'error.main' : 'text.primary'}
-                                    >
-                                      {variant.current_stock}
+                                <Stack
+                                  key={variant.id}
+                                  direction="row"
+                                  alignItems="center"
+                                  justifyContent="space-between"
+                                  gap={1}
+                                  sx={{
+                                    py: 1,
+                                    opacity: variant.active ? 1 : 0.5,
+                                    borderBottom: '1px solid',
+                                    borderColor: 'divider',
+                                    '&:last-of-type': { borderBottom: 'none' }
+                                  }}
+                                >
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      {formatSize(variant.sizes?.value ?? 0)}
                                     </Typography>
-                                  </TableCell>
-                                  <TableCell align="right">
+                                    <Typography variant="mono" color={variant.current_stock <= 0 ? 'error.main' : 'text.secondary'} sx={{ fontSize: 12 }}>
+                                      Stock {variant.current_stock} · {formatMoney(variant.unit_price)}
+                                    </Typography>
+                                  </Box>
+                                  <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }}>
                                     <Switch
                                       size="small"
                                       checked={variant.active}
                                       onChange={() => void toggleVariantActive(variant)}
                                     />
-                                  </TableCell>
-                                  <TableCell align="right">
                                     <IconButton
                                       size="small"
                                       onClick={() =>
@@ -377,11 +382,65 @@ export default function StockManagement() {
                                     >
                                       <EditIcon fontSize="small" />
                                     </IconButton>
-                                  </TableCell>
-                                </TableRow>
+                                  </Stack>
+                                </Stack>
                               ))}
-                            </TableBody>
-                          </Table>
+                            </Stack>
+
+                            {/* Desktop/tablet: table */}
+                            <Box sx={{ mt: 1, overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Size</TableCell>
+                                    <TableCell align="right">Price</TableCell>
+                                    <TableCell align="right">Stock</TableCell>
+                                    <TableCell align="right">Active</TableCell>
+                                    <TableCell align="right">Edit</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {visibleVariants.map((variant) => (
+                                    <TableRow key={variant.id} sx={{ opacity: variant.active ? 1 : 0.5 }}>
+                                      <TableCell>{formatSize(variant.sizes?.value ?? 0)}</TableCell>
+                                      <TableCell align="right">
+                                        <Typography variant="mono">{formatMoney(variant.unit_price)}</Typography>
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        <Typography
+                                          variant="mono"
+                                          color={variant.current_stock <= 0 ? 'error.main' : 'text.primary'}
+                                        >
+                                          {variant.current_stock}
+                                        </Typography>
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        <Switch
+                                          size="small"
+                                          checked={variant.active}
+                                          onChange={() => void toggleVariantActive(variant)}
+                                        />
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() =>
+                                            setVariantDialog({
+                                              open: true,
+                                              typeLabel: `${product.name} / ${type.type_name}`,
+                                              editing: variant
+                                            })
+                                          }
+                                        >
+                                          <EditIcon fontSize="small" />
+                                        </IconButton>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </Box>
+                          </>
                         )}
                       </Paper>
                     )

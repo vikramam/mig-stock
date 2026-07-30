@@ -49,24 +49,13 @@ export default function Layout({ children }: PropsWithChildren) {
       <AppBar position="sticky" elevation={0}>
         <Toolbar sx={{ gap: 1 }}>
           <Box
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: '8px',
-              bgcolor: 'primary.main',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: '"Space Grotesk", sans-serif',
-              fontWeight: 700,
-              color: 'primary.contrastText',
-              fontSize: 14
-            }}
-          >
-            M
-          </Box>
+            component="img"
+            src="/icon-192.png"
+            alt="Logo"
+            sx={{ width: 32, height: 32, borderRadius: '8px', objectFit: 'contain', flexShrink: 0 }}
+          />
           <Typography variant="h6" sx={{ flexGrow: 1, letterSpacing: 0.2 }}>
-            MIG Stock
+            Clamp Sales Tracker
           </Typography>
           <IconButton color="inherit" onClick={() => navigate('/settings')} aria-label="Settings">
             <SettingsIcon />

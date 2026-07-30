@@ -36,25 +36,13 @@ export default function Login() {
         sx={{ p: 4, width: '100%', maxWidth: 360, border: '1px solid', borderColor: 'divider' }}
       >
         <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: '10px',
-            bgcolor: 'primary.main',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: '"Space Grotesk", sans-serif',
-            fontWeight: 700,
-            color: 'primary.contrastText',
-            fontSize: 18,
-            mb: 2
-          }}
-        >
-          M
-        </Box>
+          component="img"
+          src="/icon-192.png"
+          alt="Logo"
+          sx={{ width: 40, height: 40, borderRadius: '10px', objectFit: 'contain', mb: 2 }}
+        />
         <Typography variant="h5" sx={{ mb: 0.5 }}>
-          MIG Stock
+          Clamp Sales Tracker
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           Sign in to continue

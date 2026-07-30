@@ -8,8 +8,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'MIG Stock',
-        short_name: 'MIG Stock',
+        name: 'Clamp Sales Tracker',
+        short_name: 'Clamp Sales',
         description: 'Stock and sales management for MIG',
         theme_color: '#1C1B19',
         background_color: '#1C1B19',
