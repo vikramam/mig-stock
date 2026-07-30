@@ -33,9 +33,11 @@ npm run dev
 - Full database schema, stock ledger, and atomic sale/cancel/restock/payment functions
 - App shell: responsive layout (bottom nav on mobile, side nav on desktop), theme, dashboard
   with today's summary, 7-day trend chart, and quick-action tiles
+- Sign-in (Supabase email/password auth) gating the whole app, with sign-out from the top bar
+- Stock management: create/edit/deactivate products, types, and variants, plus an add-stock
+  (restock) flow
 
 ## Next up
 
-New sale flow, stock management (products/types/variants + add stock), receipt generation
-(PNG/PDF + WhatsApp share), sales reports, low-stock page, settings (company name, logo, login
-toggle).
+New sale flow, receipt generation (PNG/PDF + WhatsApp share), sales reports, low-stock page,
+settings (company name, logo, login toggle).

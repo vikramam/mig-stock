@@ -18,29 +18,53 @@ create table products (
   created_at  timestamptz not null default now()
 );
 
+-- Master list of clamp widths (inches). Plain numeric — the "in" unit label
+-- is appended only in the UI, never stored. Edit the seed range below to match yours.
+create table widths (
+  id      uuid primary key default gen_random_uuid(),
+  value   numeric(4,1) not null unique,   -- e.g. 1.5, 2, 2.5, 3
+  active  boolean not null default true
+);
+
+insert into widths (value)
+select generate_series(1.5::numeric, 3::numeric, 0.5::numeric);
+
 create table product_types (
   id          uuid primary key default gen_random_uuid(),
   product_id  uuid not null references products(id) on delete restrict,
   type_name   text not null,                 -- e.g. "Cruiser Clamp"
-  width       text not null,                 -- e.g. "1.5 in"  (kept as text: could be 1.5", 2", etc.)
+  width_id    uuid not null references widths(id) on delete restrict,
   active      boolean not null default true,
   created_at  timestamptz not null default now(),
   unique (product_id, type_name)
 );
 
+-- Master list of sizes (length, in inches). Plain numeric — the "in" unit label
+-- is appended only in the UI (formatSize helper), never stored, so sorting/filtering
+-- stays simple. Edit the seed range below to match what you actually stock.
+create table sizes (
+  id          uuid primary key default gen_random_uuid(),
+  value       numeric(4,1) not null unique,   -- e.g. 1.5, 2, 2.5 ... 17
+  active      boolean not null default true
+);
+
+insert into sizes (value)
+select generate_series(1.5::numeric, 17::numeric, 0.5::numeric);
+
 create table variants (
   id             uuid primary key default gen_random_uuid(),
   type_id        uuid not null references product_types(id) on delete restrict,
-  size           text not null,              -- length, e.g. "2 in"
+  size_id        uuid not null references sizes(id) on delete restrict,
   unit_price     integer not null check (unit_price >= 0),   -- stored in paise (INR smallest unit)
   current_stock  integer not null default 0, -- CACHED value only. Source of truth = stock_movements ledger.
   active         boolean not null default true,
   created_at     timestamptz not null default now(),
-  unique (type_id, size)
+  unique (type_id, size_id)
 );
 
 create index idx_product_types_product on product_types(product_id);
 create index idx_variants_type on variants(type_id);
+create index idx_variants_size on variants(size_id);
 
 -- ============================================================
 -- 2. STOCK LEDGER — source of truth for stock
@@ -307,6 +331,8 @@ $$;
 
 alter table products         enable row level security;
 alter table product_types    enable row level security;
+alter table widths           enable row level security;
+alter table sizes            enable row level security;
 alter table variants         enable row level security;
 alter table stock_movements  enable row level security;
 alter table customers        enable row level security;
@@ -317,6 +343,8 @@ alter table settings         enable row level security;
 
 create policy "authenticated full access" on products         for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on product_types    for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "authenticated full access" on widths           for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "authenticated full access" on sizes            for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on variants         for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on stock_movements  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on customers        for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -334,13 +362,41 @@ select
   v.id as variant_id,
   p.name as product_name,
   pt.type_name,
-  pt.width,
-  v.size,
+  w.value as width,
+  s.value as size,
   v.current_stock,
   v.unit_price
 from variants v
 join product_types pt on pt.id = v.type_id
+join widths w on w.id = pt.width_id
+join sizes s on s.id = v.size_id
 join products p on p.id = pt.product_id
 where v.current_stock < (select low_stock_threshold from settings where id = 1)
   and v.active = true
 order by v.current_stock asc;
+
+-- ============================================================
+-- 9. STORAGE — product images
+--    Public bucket: product images are shown on shared receipts (WhatsApp etc.),
+--    so they need to be readable without a Supabase session. Writes still require
+--    an authenticated session, same as every other table above.
+-- ============================================================
+
+insert into storage.buckets (id, name, public)
+values ('product-images', 'product-images', true)
+on conflict (id) do nothing;
+
+create policy "public read" on storage.objects
+  for select using (bucket_id = 'product-images');
+
+create policy "authenticated upload" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'product-images');
+
+create policy "authenticated update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'product-images');
+
+create policy "authenticated delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'product-images');

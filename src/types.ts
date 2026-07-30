@@ -5,18 +5,40 @@ export interface Product {
   active: boolean
 }
 
+export interface Width {
+  id: string
+  value: number // plain inches, e.g. 1.5, 2, 2.5, 3
+  active: boolean
+}
+
+// Displays a width value with its unit, e.g. formatWidth(1.5) -> '1.5"'
+export function formatWidth(value: number): string {
+  return `${value}"`
+}
+
 export interface ProductType {
   id: string
   product_id: string
   type_name: string
-  width: string
+  width_id: string
   active: boolean
+}
+
+export interface Size {
+  id: string
+  value: number // plain inches, e.g. 1.5, 2, 2.5 ... 17 — append unit only in UI
+  active: boolean
+}
+
+// Displays a size value with its unit, e.g. formatSize(2) -> '2"'
+export function formatSize(value: number): string {
+  return `${value}"`
 }
 
 export interface Variant {
   id: string
   type_id: string
-  size: string
+  size_id: string
   unit_price: number // paise
   current_stock: number
   active: boolean
@@ -26,8 +48,8 @@ export interface LowStockRow {
   variant_id: string
   product_name: string
   type_name: string
-  width: string
-  size: string
+  width: number
+  size: number
   current_stock: number
   unit_price: number
 }
@@ -52,7 +74,9 @@ export interface Sale {
   payment_status: PaymentStatus
   status: SaleStatus
   note: string | null
+  created_by: string | null
   created_at: string
+  cancelled_at: string | null
 }
 
 export interface SaleItem {
@@ -63,6 +87,35 @@ export interface SaleItem {
   qty: number
   unit_price_at_sale: number
   line_total: number
+}
+
+export interface Payment {
+  id: string
+  sale_id: string
+  amount: number // paise
+  paid_at: string
+  note: string | null
+}
+
+export interface VariantWithContext {
+  id: string
+  type_id: string
+  size_id: string
+  size: number // resolved from sizes.value
+  unit_price: number // paise
+  current_stock: number
+  active: boolean
+  type_name: string
+  width_id: string
+  width: number // resolved from widths.value
+  product_id: string
+  product_name: string
+}
+
+// Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp 1.5" / 2""
+// Also used as the frozen item_snapshot on sale_items.
+export function formatVariantLabel(v: VariantWithContext): string {
+  return `${v.product_name} · ${v.type_name} ${formatWidth(v.width)} / ${formatSize(v.size)}`
 }
 
 export interface Settings {

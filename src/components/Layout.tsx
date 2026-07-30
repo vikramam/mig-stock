@@ -21,7 +21,9 @@ import InventoryIcon from '@mui/icons-material/Inventory2Rounded'
 import BarChartIcon from '@mui/icons-material/BarChartRounded'
 import WarningIcon from '@mui/icons-material/ReportProblemRounded'
 import SettingsIcon from '@mui/icons-material/SettingsRounded'
+import LogoutIcon from '@mui/icons-material/LogoutRounded'
 import { useTheme } from '@mui/material/styles'
+import { useAuth } from '../lib/auth'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
@@ -32,6 +34,7 @@ const NAV_ITEMS = [
 ]
 
 export default function Layout({ children }: PropsWithChildren) {
+  const { signOut } = useAuth()
   const theme = useTheme()
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
   const navigate = useNavigate()
@@ -67,6 +70,9 @@ export default function Layout({ children }: PropsWithChildren) {
           </Typography>
           <IconButton color="inherit" onClick={() => navigate('/settings')} aria-label="Settings">
             <SettingsIcon />
+          </IconButton>
+          <IconButton color="inherit" onClick={() => void signOut()} aria-label="Sign out">
+            <LogoutIcon />
           </IconButton>
         </Toolbar>
       </AppBar>

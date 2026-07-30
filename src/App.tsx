@@ -1,21 +1,45 @@
 import { Routes, Route } from 'react-router-dom'
+import { Box, CircularProgress } from '@mui/material'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
-import ComingSoon from './pages/ComingSoon'
+import StockManagement from './pages/StockManagement'
+import AddStock from './pages/AddStock'
+import NewSale from './pages/NewSale'
+import AllSales from './pages/AllSales'
+import NewCustomer from './pages/NewCustomer'
+import SalesReport from './pages/SalesReport'
+import LowStock from './pages/LowStock'
+import Settings from './pages/Settings'
+import Login from './pages/Login'
+import { useAuth } from './lib/auth'
 
 export default function App() {
+  const { session, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (!session) {
+    return <Login />
+  }
+
   return (
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/sale/new" element={<ComingSoon title="New sale" />} />
-        <Route path="/sales" element={<ComingSoon title="All sales" />} />
-        <Route path="/stock" element={<ComingSoon title="Stock management" />} />
-        <Route path="/stock/add" element={<ComingSoon title="Add stock" />} />
-        <Route path="/customers/new" element={<ComingSoon title="New customer" />} />
-        <Route path="/low-stock" element={<ComingSoon title="Low stock" />} />
-        <Route path="/reports" element={<ComingSoon title="Sales report" />} />
-        <Route path="/settings" element={<ComingSoon title="Settings" />} />
+        <Route path="/sale/new" element={<NewSale />} />
+        <Route path="/sales" element={<AllSales />} />
+        <Route path="/stock" element={<StockManagement />} />
+        <Route path="/stock/add" element={<AddStock />} />
+        <Route path="/customers/new" element={<NewCustomer />} />
+        <Route path="/low-stock" element={<LowStock />} />
+        <Route path="/reports" element={<SalesReport />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
   )
