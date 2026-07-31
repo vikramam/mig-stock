@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Box, Paper, Typography, TextField, IconButton, Stack, Chip, CircularProgress } from '@mui/material'
+import { Box, Paper, Typography, TextField, IconButton, Stack, Chip, Skeleton } from '@mui/material'
 import SendIcon from '@mui/icons-material/SendSharp'
 import SmartToyIcon from '@mui/icons-material/SmartToySharp'
 import { useAuth } from '../lib/auth'
@@ -112,8 +112,11 @@ export default function Chatbot() {
 
         {sending && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <Paper sx={{ px: 1.75, py: 1, border: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
-              <CircularProgress size={16} />
+            <Paper sx={{ px: 1.75, py: 1.25, bgcolor: 'background.default' }}>
+              <Stack spacing={0.5} sx={{ width: 120 }}>
+                <Skeleton variant="text" width="90%" height={14} />
+                <Skeleton variant="text" width="60%" height={14} />
+              </Stack>
             </Paper>
           </Box>
         )}

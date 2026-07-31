@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Box,
   Typography,
@@ -14,10 +14,14 @@ import {
   TableCell,
   TableBody,
   Alert,
-  CircularProgress
+  Button
 } from '@mui/material'
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfSharp'
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts'
+import { useTheme } from '@mui/material/styles'
 import { supabase, formatMoney } from '../lib/supabase'
+import { downloadBlob, receiptToPdfBlob } from '../lib/receipt'
+import { SummaryCardsSkeleton, ChartSkeleton, TableSkeleton } from '../components/skeletons'
 import { Sale, SaleItem } from '../types'
 
 type Preset = 'today' | '7d' | 'month' | 'all' | 'custom'
@@ -63,6 +67,22 @@ function rangeForPreset(preset: Preset, fromDate: string, toDate: string): { fro
   }
 }
 
+function presetLabel(preset: Preset, fromDate: string, toDate: string): string {
+  switch (preset) {
+    case 'today':
+      return 'Today'
+    case '7d':
+      return 'Last 7 days'
+    case 'month':
+      return 'This month'
+    case 'custom':
+      return fromDate && toDate ? `${fromDate} to ${toDate}` : 'Custom range'
+    case 'all':
+    default:
+      return 'All time'
+  }
+}
+
 function aggregateItems(items: SaleItem[]): ItemAgg[] {
   const map = new Map<string, ItemAgg>()
   items.forEach((it) => {
@@ -98,6 +118,7 @@ function buildTrend(sales: Sale[], from: Date | null, to: Date | null): { label:
 }
 
 export default function SalesReport() {
+  const theme = useTheme()
   const [preset, setPreset] = useState<Preset>('7d')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -106,10 +127,37 @@ export default function SalesReport() {
   const [items, setItems] = useState<SaleItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [companyName, setCompanyName] = useState('MIG')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const reportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void loadReport()
   }, [preset, fromDate, toDate])
+
+  useEffect(() => {
+    void supabase
+      .from('settings')
+      .select('company_name')
+      .eq('id', 1)
+      .single()
+      .then(({ data }) => data?.company_name && setCompanyName(data.company_name))
+  }, [])
+
+  async function handleExportPdf() {
+    if (!reportRef.current) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      const blob = await receiptToPdfBlob(reportRef.current)
+      const rangeSlug = presetLabel(preset, fromDate, toDate).toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      downloadBlob(blob, `${companyName}-sales-report-${rangeSlug}.pdf`)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to generate report PDF')
+    }
+    setExporting(false)
+  }
 
   async function loadReport() {
     setLoading(true)
@@ -162,46 +210,65 @@ export default function SalesReport() {
         Sales report
       </Typography>
 
-      <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 3 }}>
-        <ToggleButtonGroup
-          size="small"
-          value={preset}
-          exclusive
-          onChange={(_, value) => value && setPreset(value)}
-        >
-          <ToggleButton value="today">Today</ToggleButton>
-          <ToggleButton value="7d">Last 7 days</ToggleButton>
-          <ToggleButton value="month">This month</ToggleButton>
-          <ToggleButton value="all">All time</ToggleButton>
-          <ToggleButton value="custom">Custom</ToggleButton>
-        </ToggleButtonGroup>
+      <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center">
+          <ToggleButtonGroup
+            size="small"
+            value={preset}
+            exclusive
+            onChange={(_, value) => value && setPreset(value)}
+          >
+            <ToggleButton value="today">Today</ToggleButton>
+            <ToggleButton value="7d">Last 7 days</ToggleButton>
+            <ToggleButton value="month">This month</ToggleButton>
+            <ToggleButton value="all">All time</ToggleButton>
+            <ToggleButton value="custom">Custom</ToggleButton>
+          </ToggleButtonGroup>
 
-        {preset === 'custom' && (
-          <>
-            <TextField
-              label="From"
-              type="date"
-              size="small"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              label="To"
-              type="date"
-              size="small"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </>
-        )}
+          {preset === 'custom' && (
+            <>
+              <TextField
+                label="From"
+                type="date"
+                size="small"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="To"
+                type="date"
+                size="small"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </>
+          )}
+        </Stack>
+
+        <Button
+          size="small"
+          startIcon={<PictureAsPdfIcon />}
+          disabled={loading || !!loadError || sales.length === 0 || exporting}
+          onClick={() => void handleExportPdf()}
+        >
+          {exporting ? 'Exporting…' : 'Export PDF'}
+        </Button>
       </Stack>
 
+      {exportError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setExportError(null)}>
+          {exportError}
+        </Alert>
+      )}
+
       {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-          <CircularProgress />
-        </Box>
+        <>
+          <SummaryCardsSkeleton count={4} />
+          <ChartSkeleton height={200} />
+          <TableSkeleton rows={6} columns={3} />
+        </>
       )}
 
       {!loading && loadError && (
@@ -217,7 +284,15 @@ export default function SalesReport() {
       )}
 
       {!loading && !loadError && sales.length > 0 && (
-        <>
+        <Box ref={reportRef} sx={{ p: 1, bgcolor: 'background.default' }}>
+          <Box sx={{ mb: 2.5 }}>
+            <Typography variant="h5">{companyName}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Sales report — {presetLabel(preset, fromDate, toDate)} — generated{' '}
+              {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Typography>
+          </Box>
+
           <Grid container spacing={1.5} sx={{ mb: 3 }}>
             <Grid item xs={6} sm={3}>
               <SummaryCard label="Revenue" value={formatMoney(totalRevenue)} />
@@ -242,13 +317,13 @@ export default function SalesReport() {
                 <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="reportTrendFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#C97A2B" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#C97A2B" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6B6860' }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(v: number) => [`Rs. ${v.toLocaleString('en-IN')}`, 'Revenue']} />
-                  <Area type="monotone" dataKey="total" stroke="#C97A2B" strokeWidth={2} fill="url(#reportTrendFill)" />
+                  <Area type="monotone" dataKey="total" stroke={theme.palette.primary.main} strokeWidth={2} fill="url(#reportTrendFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             </Box>
@@ -284,7 +359,7 @@ export default function SalesReport() {
               +{otherItemsCount} more item{otherItemsCount === 1 ? '' : 's'} not shown.
             </Typography>
           )}
-        </>
+        </Box>
       )}
     </Box>
   )

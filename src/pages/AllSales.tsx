@@ -26,6 +26,7 @@ import SaleDetailDialog from '../components/sale/SaleDetailDialog'
 import Receipt, { ReceiptData } from '../components/sale/Receipt'
 import { fetchReceiptData } from '../lib/receiptData'
 import { downloadBlob, receiptToPngBlob } from '../lib/receipt'
+import { RowCardsSkeleton, TableSkeleton } from '../components/skeletons'
 
 type SaleRow = Sale & { customers: { name: string } | null }
 
@@ -124,8 +125,16 @@ export default function AllSales() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
+      <Box>
+        <Typography variant="h4" sx={{ mb: 2 }}>
+          All sales
+        </Typography>
+        <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+          <RowCardsSkeleton rows={5} />
+        </Box>
+        <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+          <TableSkeleton rows={6} columns={7} />
+        </Box>
       </Box>
     )
   }
@@ -189,7 +198,14 @@ export default function AllSales() {
                 key={sale.id}
                 variant="outlined"
                 onClick={() => setSelectedSaleId(sale.id)}
-                sx={{ p: 1.5, cursor: 'pointer', opacity: sale.status === 'cancelled' ? 0.6 : 1 }}
+                sx={{
+                  p: 1.5,
+                  cursor: 'pointer',
+                  opacity: sale.status === 'cancelled' ? 0.6 : 1,
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+                  '&:hover': { transform: 'scale(1.02)', borderColor: 'rgba(201,122,43,0.4)' },
+                  '&:active': { transform: 'scale(0.98)' }
+                }}
               >
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
                   <Box>
@@ -269,7 +285,11 @@ export default function AllSales() {
                     key={sale.id}
                     hover
                     onClick={() => setSelectedSaleId(sale.id)}
-                    sx={{ cursor: 'pointer', opacity: sale.status === 'cancelled' ? 0.6 : 1 }}
+                    sx={{
+                      cursor: 'pointer',
+                      opacity: sale.status === 'cancelled' ? 0.6 : 1,
+                      transition: 'background-color 0.2s ease'
+                    }}
                   >
                     <TableCell>{sale.receipt_no}</TableCell>
                     <TableCell>{formatDateTime(sale.created_at)}</TableCell>

@@ -26,14 +26,15 @@ export default function Login() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: 'background.default',
+        // No bgcolor here — left transparent so the body's own background (solid color +
+        // the dark-mode ambient glow, set globally in src/theme.ts) shows through.
         p: 2
       }}
     >
       <Paper
         component="form"
         onSubmit={handleSubmit}
-        sx={{ p: 4, width: '100%', maxWidth: 360, border: '1px solid', borderColor: 'divider' }}
+        sx={{ p: 4, width: '100%', maxWidth: 360 }}
       >
         <Box
           component="img"

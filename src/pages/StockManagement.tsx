@@ -19,7 +19,6 @@ import {
   Stack,
   Snackbar,
   Alert,
-  CircularProgress,
   Paper
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreSharp'
@@ -31,6 +30,7 @@ import { Product, ProductType, Variant, Size, formatSize } from '../types'
 import ProductDialog from '../components/stock/ProductDialog'
 import TypeDialog from '../components/stock/TypeDialog'
 import VariantDialog from '../components/stock/VariantDialog'
+import { RowCardsSkeleton } from '../components/skeletons'
 
 interface VariantRow extends Variant {
   sizes: { value: number } | null
@@ -213,8 +213,11 @@ export default function StockManagement() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
+      <Box>
+        <Typography variant="h4" sx={{ mb: 2 }}>
+          Stock
+        </Typography>
+        <RowCardsSkeleton rows={5} />
       </Box>
     )
   }

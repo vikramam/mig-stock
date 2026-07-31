@@ -11,7 +11,6 @@ import {
   TableBody,
   Button,
   Alert,
-  CircularProgress,
   Stack,
   TextField,
   MenuItem,
@@ -20,6 +19,7 @@ import {
 } from '@mui/material'
 import { supabase, formatMoney } from '../lib/supabase'
 import { LowStockRow, formatSize } from '../types'
+import { TableSkeleton } from '../components/skeletons'
 
 export default function LowStock() {
   const navigate = useNavigate()
@@ -76,8 +76,11 @@ export default function LowStock() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
+      <Box>
+        <Typography variant="h4" sx={{ mb: 2 }}>
+          Low stock
+        </Typography>
+        <TableSkeleton rows={6} columns={5} />
       </Box>
     )
   }

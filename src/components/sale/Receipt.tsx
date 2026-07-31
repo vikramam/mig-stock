@@ -29,11 +29,45 @@ export interface ReceiptData {
   paymentStatus: PaymentStatus
 }
 
+// The receipt is always rendered as a fixed white card, independent of the app's own
+// theme (light or dark) — it gets captured to PNG/PDF and shared/printed, so it must stay
+// legible on white and consistent regardless of what the in-app palette looks like at the
+// moment someone hits share. It borrows the app's new visual language (rounded corners,
+// a soft ring/shadow instead of a flat border, tight header tracking, the amber accent bar)
+// but every color below is a fixed constant, never a theme token.
+const RECEIPT_MUTED = '#6B6860'
+const RECEIPT_DIVIDER = '#DAD6CC'
+const RECEIPT_ACCENT_GRADIENT = 'linear-gradient(90deg, #E0A461, #C97A2B, #9C5D1E)'
+
+// Display-only formatting — never touches the stored receipt_no/item_snapshot, both of
+// which are frozen historical data (see "Sales" and "Receipt" sections in CLAUDE.md).
+function formatReceiptNoForDisplay(receiptNo: string): string {
+  return receiptNo.replace(/^MIG_/, '')
+}
+
+function formatItemLabelForDisplay(label: string): string {
+  return label.replace(/\s*\/\s*/g, ' - ')
+}
+
 const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Receipt({ data }, ref) {
   const [logoFailed, setLogoFailed] = useState(false)
 
   return (
-    <Box ref={ref} sx={{ width: 380, mx: 'auto', bgcolor: '#FFFFFF', color: '#1B1710', p: 3 }}>
+    <Box
+      ref={ref}
+      sx={{
+        width: 380,
+        mx: 'auto',
+        bgcolor: '#FFFFFF',
+        color: '#1B1710',
+        borderRadius: '20px',
+        // A crisp ring (no blur) rather than a soft drop shadow — html2canvas crops
+        // anything blurred past the element's own box, so a blurred shadow here would
+        // get clipped in the exported PNG/PDF. Ring shadows sit flush at the edge instead.
+        boxShadow: '0 0 0 1px rgba(15,23,42,0.08)',
+        p: 3.5
+      }}
+    >
       {!logoFailed && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
           <Box
@@ -48,31 +82,37 @@ const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Recei
       <Typography variant="h5" align="center" sx={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }}>
         {data.companyName}
       </Typography>
-      <Typography variant="body2" align="center" color="text.secondary">
-        Receipt {data.receiptNo}
+      <Typography variant="body2" align="center" sx={{ color: RECEIPT_MUTED }}>
+        {formatReceiptNoForDisplay(data.receiptNo)}
       </Typography>
-      <Typography variant="body2" align="center" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography variant="body2" align="center" sx={{ color: RECEIPT_MUTED }}>
         {new Date(data.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
       </Typography>
 
-      <Typography variant="body2">Customer: {data.customerName ?? 'Walk-in'}</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', my: 1.5 }}>
+        <Box sx={{ width: 48, height: 3, borderRadius: '999px', backgroundImage: RECEIPT_ACCENT_GRADIENT }} />
+      </Box>
 
-      <Divider sx={{ my: 1.5 }} />
+      <Typography variant="body2" sx={{ mt: 1 }}>
+        Customer: {data.customerName ?? 'Walk-in'}
+      </Typography>
+
+      <Divider sx={{ my: 1.5, borderColor: RECEIPT_DIVIDER }} />
 
       <Stack spacing={1.5}>
         {data.items.map((item, i) => (
-          <Stack key={i} direction="row" gap={1} alignItems="center">
+          <Stack key={i} direction="row" gap={1.25} alignItems="center">
             {item.imageUrl && (
               <Box
                 component="img"
                 src={item.imageUrl}
                 crossOrigin="anonymous"
-                sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
+                sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: '10px', flexShrink: 0 }}
               />
             )}
             <Box sx={{ flex: 1 }}>
-              <Typography variant="body2">{item.label}</Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="body2">{formatItemLabelForDisplay(item.label)}</Typography>
+              <Typography variant="caption" sx={{ color: RECEIPT_MUTED }}>
                 {item.qty} x {formatMoney(item.unitPrice)}
               </Typography>
             </Box>
@@ -81,7 +121,7 @@ const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Recei
         ))}
       </Stack>
 
-      <Divider sx={{ my: 1.5 }} />
+      <Divider sx={{ my: 1.5, borderColor: RECEIPT_DIVIDER }} />
 
       <Stack spacing={0.5}>
         <Stack direction="row" justifyContent="space-between">
@@ -96,15 +136,30 @@ const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Recei
           <Typography variant="subtitle2">Balance due</Typography>
           <Typography variant="mono">{formatMoney(data.balanceDue)}</Typography>
         </Stack>
-        <Typography variant="body2" align="center" sx={{ mt: 1, fontWeight: 600 }}>
-          {data.paymentStatus === 'paid' ? 'PAID IN FULL' : 'PAYMENT PENDING'}
-        </Typography>
+
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1.5 }}>
+          <Box
+            sx={{
+              px: 1.5,
+              py: 0.5,
+              borderRadius: '999px',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              bgcolor: data.paymentStatus === 'paid' ? 'rgba(76,163,80,0.12)' : 'rgba(217,130,43,0.14)',
+              color: data.paymentStatus === 'paid' ? '#2F7A34' : '#9C5D1E'
+            }}
+          >
+            {data.paymentStatus === 'paid' ? 'Paid in full' : 'Payment pending'}
+          </Box>
+        </Box>
       </Stack>
 
       {data.receiptFooter && (
         <>
-          <Divider sx={{ my: 1.5 }} />
-          <Typography variant="body2" align="center" color="text.secondary">
+          <Divider sx={{ my: 1.5, borderColor: RECEIPT_DIVIDER }} />
+          <Typography variant="body2" align="center" sx={{ color: RECEIPT_MUTED }}>
             {data.receiptFooter}
           </Typography>
         </>

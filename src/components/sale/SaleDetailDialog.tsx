@@ -17,7 +17,7 @@ import {
   TextField,
   Button,
   Alert,
-  CircularProgress,
+  Skeleton,
   IconButton
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/CloseSharp'
@@ -187,8 +187,21 @@ export default function SaleDetailDialog({
       </DialogTitle>
       <DialogContent>
         {loading && (
-          <Stack alignItems="center" sx={{ py: 4 }}>
-            <CircularProgress />
+          <Stack spacing={2}>
+            <Stack direction="row" gap={1}>
+              <Skeleton variant="rounded" width={64} height={24} />
+              <Skeleton variant="rounded" width={64} height={24} />
+            </Stack>
+            <Stack spacing={0.75}>
+              <Skeleton variant="text" width="40%" />
+              <Skeleton variant="text" width="55%" />
+            </Stack>
+            <Skeleton variant="rounded" height={100} />
+            <Stack spacing={0.75}>
+              <Skeleton variant="text" width="100%" />
+              <Skeleton variant="text" width="100%" />
+              <Skeleton variant="text" width="60%" />
+            </Stack>
           </Stack>
         )}
 

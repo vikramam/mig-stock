@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Box, Typography, Paper, TextField, Button, Stack, Alert, CircularProgress, Divider, List, ListItem } from '@mui/material'
+import { Box, Typography, Paper, TextField, Button, Stack, Alert, Divider, List, ListItem } from '@mui/material'
 import { supabase } from '../lib/supabase'
 import { downloadRowsAsSheet, downloadWorkbook, readWorkbookFile, sheetToRows } from '../lib/excel'
 import { importCatalogRows, CatalogImportRow, CatalogImportSummary } from '../lib/catalogImport'
+import { FormSkeleton } from '../components/skeletons'
 
 const BACKUP_TABLES = [
   'products',
@@ -173,8 +174,14 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
+      <Box sx={{ maxWidth: 480, mx: 'auto' }}>
+        <Typography variant="h4" sx={{ mb: 3 }}>
+          Settings
+        </Typography>
+        <Stack spacing={2}>
+          <FormSkeleton fields={4} />
+          <FormSkeleton fields={2} actionWidth={160} />
+        </Stack>
       </Box>
     )
   }

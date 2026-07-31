@@ -23,8 +23,11 @@ import WarningIcon from '@mui/icons-material/ReportProblemSharp'
 import SettingsIcon from '@mui/icons-material/SettingsSharp'
 import LogoutIcon from '@mui/icons-material/LogoutSharp'
 import SmartToyIcon from '@mui/icons-material/SmartToySharp'
+import LightModeIcon from '@mui/icons-material/LightModeSharp'
+import DarkModeIcon from '@mui/icons-material/DarkModeSharp'
 import { useTheme } from '@mui/material/styles'
 import { useAuth } from '../lib/auth'
+import { useThemeMode } from '../lib/themeMode'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
@@ -36,6 +39,7 @@ const NAV_ITEMS = [
 
 export default function Layout({ children }: PropsWithChildren) {
   const { signOut } = useAuth()
+  const { mode, toggleMode } = useThemeMode()
   const theme = useTheme()
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
   const navigate = useNavigate()
@@ -58,6 +62,13 @@ export default function Layout({ children }: PropsWithChildren) {
           <Typography variant="h6" sx={{ flexGrow: 1, letterSpacing: 0.2 }}>
             Clamp Sales Tracker
           </Typography>
+          <IconButton
+            color="inherit"
+            onClick={toggleMode}
+            aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+          </IconButton>
           <IconButton color="inherit" onClick={() => navigate('/chat')} aria-label="Ask MIG">
             <SmartToyIcon />
           </IconButton>
@@ -107,9 +118,9 @@ export default function Layout({ children }: PropsWithChildren) {
           component="main"
           sx={{
             flex: 1,
-            p: { xs: 2, md: 3 },
-            pb: { xs: 'calc(64px + env(safe-area-inset-bottom))', md: 3 },
-            maxWidth: 1100,
+            p: { xs: 2, md: 4 },
+            pb: { xs: 'calc(64px + env(safe-area-inset-bottom))', md: 4 },
+            maxWidth: 1160,
             mx: 'auto',
             width: '100%'
           }}

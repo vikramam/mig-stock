@@ -11,8 +11,8 @@ export default defineConfig({
         name: 'Clamp Sales Tracker',
         short_name: 'Clamp Sales',
         description: 'Stock and sales management for MIG',
-        theme_color: '#1C1B19',
-        background_color: '#1C1B19',
+        theme_color: '#0A0A0C',
+        background_color: '#0A0A0C',
         display: 'standalone',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },

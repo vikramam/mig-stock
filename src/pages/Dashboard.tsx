@@ -9,7 +9,9 @@ import BarChartIcon from '@mui/icons-material/BarChartSharp'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLongSharp'
 import SmartToyIcon from '@mui/icons-material/SmartToySharp'
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts'
+import { useTheme } from '@mui/material/styles'
 import { supabase, formatMoney } from '../lib/supabase'
+import { SummaryCardsSkeleton, ChartSkeleton } from '../components/skeletons'
 
 interface QuickAction {
   label: string
@@ -30,11 +32,13 @@ const ACTIONS: QuickAction[] = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const theme = useTheme()
   const [todayTotal, setTodayTotal] = useState<number | null>(null)
   const [todayCount, setTodayCount] = useState<number>(0)
   const [pendingCount, setPendingCount] = useState<number>(0)
   const [lowStockCount, setLowStockCount] = useState<number>(0)
   const [trend, setTrend] = useState<{ day: string; total: number }[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     void loadDashboard()
@@ -85,6 +89,7 @@ export default function Dashboard() {
       buckets[key] = (buckets[key] ?? 0) + s.total
     })
     setTrend(Object.entries(buckets).map(([day, total]) => ({ day, total: total / 100 })))
+    setLoading(false)
   }
 
   return (
@@ -96,51 +101,60 @@ export default function Dashboard() {
         {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
       </Typography>
 
-      <Grid container spacing={1.5} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={3}>
-          <SummaryCard label="Sales today" value={todayTotal === null ? '—' : formatMoney(todayTotal)} />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <SummaryCard label="Receipts today" value={String(todayCount)} />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <SummaryCard
-            label="Pending balances"
-            value={String(pendingCount)}
-            chipColor={pendingCount > 0 ? 'warning' : undefined}
-            onClick={() => navigate('/sales?filter=pending')}
-          />
-        </Grid>
-        <Grid item xs={6} sm={3}>
-          <SummaryCard
-            label="Low stock items"
-            value={String(lowStockCount)}
-            chipColor={lowStockCount > 0 ? 'error' : undefined}
-            onClick={() => navigate('/low-stock')}
-          />
-        </Grid>
-      </Grid>
+      {loading ? (
+        <>
+          <SummaryCardsSkeleton count={4} />
+          <ChartSkeleton height={140} />
+        </>
+      ) : (
+        <>
+          <Grid container spacing={1.5} sx={{ mb: 3 }}>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard label="Sales today" value={todayTotal === null ? '—' : formatMoney(todayTotal)} />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard label="Receipts today" value={String(todayCount)} />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard
+                label="Pending balances"
+                value={String(pendingCount)}
+                chipColor={pendingCount > 0 ? 'warning' : undefined}
+                onClick={() => navigate('/sales?filter=pending')}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard
+                label="Low stock items"
+                value={String(lowStockCount)}
+                chipColor={lowStockCount > 0 ? 'error' : undefined}
+                onClick={() => navigate('/low-stock')}
+              />
+            </Grid>
+          </Grid>
 
-      <Paper sx={{ p: 2, mb: 3, border: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-          Last 7 days (Rs.)
-        </Typography>
-        <Box sx={{ height: 140 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#C97A2B" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#C97A2B" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#6B6860' }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v: number) => [`Rs. ${v.toLocaleString('en-IN')}`, 'Sales']} />
-              <Area type="monotone" dataKey="total" stroke="#C97A2B" strokeWidth={2} fill="url(#trendFill)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Box>
-      </Paper>
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              Last 7 days (Rs.)
+            </Typography>
+            <Box sx={{ height: 140 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="day" tick={{ fontSize: 12, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v: number) => [`Rs. ${v.toLocaleString('en-IN')}`, 'Sales']} />
+                  <Area type="monotone" dataKey="total" stroke={theme.palette.primary.main} strokeWidth={2} fill="url(#trendFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Box>
+          </Paper>
+        </>
+      )}
 
       <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
         Quick actions
@@ -158,12 +172,21 @@ export default function Dashboard() {
                 justifyContent: 'center',
                 gap: 1,
                 cursor: 'pointer',
-                border: '1px solid',
-                borderColor: action.accent ? 'primary.main' : 'divider',
-                bgcolor: action.accent ? 'primary.main' : 'background.paper',
                 color: action.accent ? 'primary.contrastText' : 'text.primary',
-                transition: 'transform 0.12s ease',
-                '&:hover': { transform: 'translateY(-2px)' }
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+                ...(action.accent && {
+                  border: '1px solid rgba(224,164,97,0.35)',
+                  backgroundImage: 'linear-gradient(135deg, #E0A461 0%, #C97A2B 55%, #9C5D1E 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), 0 8px 28px -6px rgba(201,122,43,0.55), 0 2px 8px rgba(0,0,0,0.35)'
+                }),
+                '&:hover': {
+                  transform: 'translateY(-2px) scale(1.02)',
+                  ...(!action.accent && { borderColor: 'rgba(201,122,43,0.4)' }),
+                  ...(action.accent && {
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 12px 34px -6px rgba(201,122,43,0.7), 0 2px 8px rgba(0,0,0,0.4)'
+                  })
+                },
+                '&:active': { transform: 'translateY(0) scale(0.98)' }
               }}
             >
               {action.icon}
@@ -194,10 +217,13 @@ function SummaryCard({
       onClick={onClick}
       sx={{
         p: 1.5,
-        border: '1px solid',
-        borderColor: 'divider',
         cursor: onClick ? 'pointer' : 'default',
-        height: '100%'
+        height: '100%',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+        ...(onClick && {
+          '&:hover': { transform: 'scale(1.02)', borderColor: 'rgba(201,122,43,0.4)' },
+          '&:active': { transform: 'scale(0.98)' }
+        })
       }}
     >
       <Stack direction="row" alignItems="center" justifyContent="space-between">

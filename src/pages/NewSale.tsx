@@ -10,7 +10,6 @@ import {
   Button,
   Stack,
   Alert,
-  CircularProgress,
   Table,
   TableHead,
   TableRow,
@@ -26,6 +25,7 @@ import { Customer, VariantWithContext, formatVariantLabel, formatSize } from '..
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
 import ReceiptDialog from '../components/sale/ReceiptDialog'
 import QtyStepper from '../components/QtyStepper'
+import { FormSkeleton } from '../components/skeletons'
 
 interface CartLine {
   variant: VariantWithContext
@@ -256,8 +256,15 @@ export default function NewSale() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
+      <Box sx={{ maxWidth: 720, mx: 'auto' }}>
+        <Typography variant="h4" sx={{ mb: 3 }}>
+          New sale
+        </Typography>
+        <Stack spacing={2}>
+          <FormSkeleton fields={1} actionWidth={100} />
+          <FormSkeleton fields={3} actionWidth={100} />
+          <FormSkeleton fields={2} actionWidth={160} />
+        </Stack>
       </Box>
     )
   }

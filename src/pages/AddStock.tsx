@@ -9,11 +9,11 @@ import {
   Button,
   Stack,
   Alert,
-  CircularProgress,
   Link as MuiLink
 } from '@mui/material'
 import { supabase, formatMoney, fetchActiveVariants } from '../lib/supabase'
 import { VariantWithContext, formatVariantLabel, formatSize } from '../types'
+import { FormSkeleton } from '../components/skeletons'
 
 export default function AddStock() {
   const navigate = useNavigate()
@@ -126,8 +126,11 @@ export default function AddStock() {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
+      <Box sx={{ maxWidth: 480, mx: 'auto' }}>
+        <Typography variant="h4" sx={{ mb: 3 }}>
+          Add stock
+        </Typography>
+        <FormSkeleton fields={4} />
       </Box>
     )
   }
