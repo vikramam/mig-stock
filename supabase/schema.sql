@@ -18,24 +18,13 @@ create table products (
   created_at  timestamptz not null default now()
 );
 
--- Master list of clamp widths (inches). Plain numeric — the "in" unit label
--- is appended only in the UI, never stored. Edit the seed range below to match yours.
--- NOTE: retired from the app's UI/flow (kept only so historical width_id values on
--- product_types stay valid) — width_id below is nullable, new types don't set one.
-create table widths (
-  id      uuid primary key default gen_random_uuid(),
-  value   numeric(4,1) not null unique,   -- e.g. 1.5, 2, 2.5, 3
-  active  boolean not null default true
-);
-
-insert into widths (value)
-select generate_series(1.5::numeric, 3::numeric, 0.5::numeric);
-
+-- NOTE: a "width" concept (widths master table + product_types.width_id) was tried and
+-- then explicitly dropped (see migration_005_retire_width.sql + migration_006_drop_width.sql).
+-- Do NOT reintroduce a width column unless the owner explicitly asks for it again.
 create table product_types (
   id          uuid primary key default gen_random_uuid(),
   product_id  uuid not null references products(id) on delete restrict,
   type_name   text not null,                 -- e.g. "Cruiser Clamp"
-  width_id    uuid references widths(id) on delete restrict,  -- retired, see note above
   active      boolean not null default true,
   created_at  timestamptz not null default now(),
   unique (product_id, type_name)
@@ -43,13 +32,15 @@ create table product_types (
 
 -- Master list of sizes (length, in inches). Plain numeric — the "in" unit label
 -- is appended only in the UI (formatSize helper), never stored, so sorting/filtering
--- stays simple. Edit the seed range below to match what you actually stock.
+-- stays simple. Edit the seed range below to match what you actually stock. Includes 0
+-- (see migration_007_add_size_zero.sql) alongside 1.5 through 17 in 0.5 steps.
 create table sizes (
   id          uuid primary key default gen_random_uuid(),
-  value       numeric(4,1) not null unique,   -- e.g. 1.5, 2, 2.5 ... 17
+  value       numeric(4,1) not null unique,   -- e.g. 0, 1.5, 2, 2.5 ... 17
   active      boolean not null default true
 );
 
+insert into sizes (value) values (0);
 insert into sizes (value)
 select generate_series(1.5::numeric, 17::numeric, 0.5::numeric);
 
@@ -333,7 +324,6 @@ $$;
 
 alter table products         enable row level security;
 alter table product_types    enable row level security;
-alter table widths           enable row level security;
 alter table sizes            enable row level security;
 alter table variants         enable row level security;
 alter table stock_movements  enable row level security;
@@ -345,7 +335,6 @@ alter table settings         enable row level security;
 
 create policy "authenticated full access" on products         for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on product_types    for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
-create policy "authenticated full access" on widths           for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on sizes            for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on variants         for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated full access" on stock_movements  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');

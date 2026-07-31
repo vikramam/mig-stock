@@ -13,18 +13,27 @@ products). Used only by the owner and his father — customers never access the 
 - Sharing: native Web Share API (`navigator.share`) — NOT a WhatsApp API integration
 - Excel import/export: SheetJS (xlsx)
 
-## Catalog structure (three levels)
+## Catalog structure (two levels of attribute)
 
 - **products** — e.g. "Clamp". Has ONE `image_url`, shared across all its types/sizes.
-- **product_types** — e.g. "Cruiser Clamp". Has a `width_id` -> `widths` master table
-  (this is the clamp's width in inches, fixed per type).
+- **product_types** — e.g. "Cruiser Clamp". Just a name — NO width tracking. Width was
+  tried as a `width_id` -> `widths` master table (made nullable/unused in
+  `supabase/migration_005_retire_width.sql`), then actually dropped — column and table
+  both gone — in `supabase/migration_006_drop_width.sql`, run directly against the live
+  project; `supabase/schema.sql` (fresh-install baseline) matches this dropped state.
+  **Do not reintroduce a width column unless the owner explicitly asks for it again** —
+  if you see old references to `width_id`, `widths`, or `formatWidth` anywhere (docs,
+  comments, stray code), they're leftover from before the drop and should be removed,
+  not treated as the current shape.
 - **variants** — the actual sellable SKU: a type + a `size_id` -> `sizes` master table
   (this is length in inches). `unit_price` and `current_stock` live here.
 
-Both `sizes` and `widths` are master tables (plain numeric inch values, e.g. 1.5, 2, 2.5).
-The "in" unit label is appended ONLY in the UI (`formatSize` / `formatWidth` helpers in
-`src/types.ts`) — never stored as text. This was migrated from free-text columns; see
-`supabase/migration_002_003_combined.sql` for history if anything looks inconsistent.
+`sizes` is a master table (plain numeric inch values). The "in" unit label is appended
+ONLY in the UI (`formatSize` helper in `src/types.ts`) — never stored as text. This was
+migrated from a free-text column; see `supabase/migration_002_003_combined.sql` for that
+history. The seed range is 0, then 1.5 through 17 in 0.5 steps — the `0` value was added
+later via `supabase/migration_007_add_size_zero.sql` (run directly against the live
+project; also baked into the seed in `supabase/schema.sql` for fresh installs).
 
 ## Stock ledger
 

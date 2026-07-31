@@ -148,6 +148,10 @@ export default function NewSale() {
     return variants.filter((v) => v.type_id === pickTypeId).sort((a, b) => a.size - b.size)
   }, [variants, pickTypeId])
 
+  // A type whose only variant is size 0 has no meaningful size dimension at all — skip
+  // the size step for it entirely rather than making the cashier pick a single option.
+  const isSizelessType = sizeOptions.length > 0 && sizeOptions.every((v) => v.size === 0)
+
   function addToCart(variant: VariantWithContext) {
     setCart((prev) => {
       const existing = prev.find((l) => l.variant.id === variant.id)
@@ -167,6 +171,17 @@ export default function NewSale() {
   function handleTypePick(id: string) {
     setPickTypeId(id)
     setPickVariantId('')
+
+    // Sizeless type (its only variant is size 0) — nothing left to pick, so add it
+    // straight away instead of showing a size dropdown with one blank-looking option.
+    // Deliberately NOT resetting pickTypeId back to '' here — sizeOptions/isSizelessType
+    // are both derived from it, so clearing it would make the Size field reappear (empty,
+    // disabled) instead of staying hidden. Leaving Type selected also matches how the
+    // normal sized flow already keeps Product/Type selected after adding an item.
+    const optionsForType = variants.filter((v) => v.type_id === id)
+    if (optionsForType.length > 0 && optionsForType.every((v) => v.size === 0)) {
+      addToCart(optionsForType[0])
+    }
   }
 
   function handleSizePick(id: string) {
@@ -351,20 +366,22 @@ export default function NewSale() {
             ))}
           </TextField>
 
-          <TextField
-            select
-            label="Size"
-            value={pickVariantId}
-            onChange={(e) => handleSizePick(e.target.value)}
-            disabled={!pickTypeId}
-            fullWidth
-          >
-            {sizeOptions.map((v) => (
-              <MenuItem key={v.id} value={v.id}>
-                {formatSize(v.size)} — {formatMoney(v.unit_price)} · {v.current_stock} in stock
-              </MenuItem>
-            ))}
-          </TextField>
+          {!isSizelessType && (
+            <TextField
+              select
+              label="Size"
+              value={pickVariantId}
+              onChange={(e) => handleSizePick(e.target.value)}
+              disabled={!pickTypeId}
+              fullWidth
+            >
+              {sizeOptions.map((v) => (
+                <MenuItem key={v.id} value={v.id}>
+                  {formatSize(v.size)} — {formatMoney(v.unit_price)} · {v.current_stock} in stock
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         </Stack>
 
         {cart.length === 0 ? (
@@ -383,7 +400,8 @@ export default function NewSale() {
                         {line.variant.product_name} · {line.variant.type_name}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Size {formatSize(line.variant.size)} · {formatMoney(line.variant.unit_price)} each
+                        {line.variant.size !== 0 && `Size ${formatSize(line.variant.size)} · `}
+                        {formatMoney(line.variant.unit_price)} each
                       </Typography>
                       {line.qty > line.variant.current_stock && (
                         <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
@@ -429,7 +447,7 @@ export default function NewSale() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{formatSize(line.variant.size)}</TableCell>
+                      <TableCell>{line.variant.size === 0 ? '' : formatSize(line.variant.size)}</TableCell>
                       <TableCell align="right">
                         <Typography variant="mono">{formatMoney(line.variant.unit_price)}</Typography>
                       </TableCell>

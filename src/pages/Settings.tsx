@@ -7,7 +7,6 @@ import { FormSkeleton } from '../components/skeletons'
 
 const BACKUP_TABLES = [
   'products',
-  'widths',
   'sizes',
   'product_types',
   'variants',

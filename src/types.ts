@@ -98,9 +98,11 @@ export interface VariantWithContext {
 }
 
 // Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp / 2""
-// Also used as the frozen item_snapshot on sale_items.
+// Also used as the frozen item_snapshot on sale_items. Size 0 means "sizeless" (the type
+// has no meaningful size dimension) — omit the size segment entirely rather than showing
+// a nonsensical "/ 0"".
 export function formatVariantLabel(v: VariantWithContext): string {
-  return `${v.product_name} · ${v.type_name} / ${formatSize(v.size)}`
+  return v.size === 0 ? `${v.product_name} · ${v.type_name}` : `${v.product_name} · ${v.type_name} / ${formatSize(v.size)}`
 }
 
 export interface Settings {

@@ -41,7 +41,6 @@ interface ModeTokens {
   appBarShadow: string
   // Solid (no blur) fallback for AppBar/BottomNav/Dialog on mobile — see mobile perf note.
   mobileSolidBg: string
-  bottomNavBg: string
   bottomNavIconColor: string
   dialogBg: string
   bodyBackgroundImage: string
@@ -65,7 +64,6 @@ function getModeTokens(mode: PaletteMode): ModeTokens {
       appBarBg: 'rgba(255,255,255,0.75)',
       appBarShadow: '0 1px 2px rgba(15,23,42,0.04)',
       mobileSolidBg: 'rgba(255,255,255,0.96)',
-      bottomNavBg: 'rgba(255,255,255,0.8)',
       bottomNavIconColor: 'rgba(15,23,42,0.55)',
       dialogBg: 'rgba(255,255,255,0.88)',
       bodyBackgroundImage: 'none',
@@ -82,7 +80,6 @@ function getModeTokens(mode: PaletteMode): ModeTokens {
     appBarBg: 'rgba(9,9,11,0.72)',
     appBarShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.35)',
     mobileSolidBg: 'rgba(9,9,11,0.96)',
-    bottomNavBg: 'rgba(9,9,11,0.78)',
     bottomNavIconColor: 'rgba(244,244,245,0.6)',
     dialogBg: 'rgba(24,24,27,0.82)',
     // Subtle ambient glow — dark mode only, applied once at the body level (not per-page)
@@ -127,9 +124,11 @@ export function getTheme(mode: PaletteMode) {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
+          // `background-attachment: fixed` is a known severe mobile Safari perf hazard
+          // (forces a full background repaint on layout shifts, e.g. the keyboard opening
+          // when a field is focused) — dropped in favor of a plain scrolling background.
           body: {
-            backgroundImage: t.bodyBackgroundImage,
-            backgroundAttachment: 'fixed'
+            backgroundImage: t.bodyBackgroundImage
           },
           '@keyframes fadeInUp': {
             from: { opacity: 0, transform: 'translateY(10px)' },

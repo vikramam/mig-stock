@@ -45,8 +45,14 @@ function formatReceiptNoForDisplay(receiptNo: string): string {
   return receiptNo.replace(/^MIG_/, '')
 }
 
+// Only the "/" that formatVariantLabel (src/types.ts) inserts right before a trailing
+// size — e.g. "... / 2"" — should become "-". A "/" that's just part of the actual
+// product/type name (real data, e.g. a type literally named "3/4 Bracket") must be left
+// alone. `item.label` is a frozen, opaque string with no structure we can query, so the
+// only safe way to tell the two apart is anchoring to the trailing numeric+quote pattern
+// a size always has, rather than replacing every "/" in the string.
 function formatItemLabelForDisplay(label: string): string {
-  return label.replace(/\s*\/\s*/g, ' - ')
+  return label.replace(/\s*\/\s*(\d+(?:\.\d+)?")\s*$/, ' - $1')
 }
 
 const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Receipt({ data }, ref) {
