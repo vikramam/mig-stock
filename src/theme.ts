@@ -32,8 +32,15 @@ interface ModeTokens {
   border: string
   borderStrong: string
   cardShadow: string
+  // Lighter shadow for transient overlay Paper (Menu/Select/Autocomplete popups) — those
+  // already animate open/closed via MUI's own Grow/Fade transition, so they get a cheaper
+  // shadow to repaint each frame instead of the full card shadow. See the mobile perf note
+  // on MuiPaper below for why they also skip the fadeInUp animation entirely.
+  popoverShadow: string
   appBarBg: string
   appBarShadow: string
+  // Solid (no blur) fallback for AppBar/BottomNav/Dialog on mobile — see mobile perf note.
+  mobileSolidBg: string
   bottomNavBg: string
   bottomNavIconColor: string
   dialogBg: string
@@ -54,8 +61,10 @@ function getModeTokens(mode: PaletteMode): ModeTokens {
       // border) plus a soft, barely-there elevation shadow. No inset top highlight here:
       // that bevel trick only reads on dark surfaces.
       cardShadow: '0 0 0 1px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.05), 0 8px 24px rgba(15,23,42,0.05)',
+      popoverShadow: '0 0 0 1px rgba(15,23,42,0.08), 0 4px 16px rgba(15,23,42,0.12)',
       appBarBg: 'rgba(255,255,255,0.75)',
       appBarShadow: '0 1px 2px rgba(15,23,42,0.04)',
+      mobileSolidBg: 'rgba(255,255,255,0.96)',
       bottomNavBg: 'rgba(255,255,255,0.8)',
       bottomNavIconColor: 'rgba(15,23,42,0.55)',
       dialogBg: 'rgba(255,255,255,0.88)',
@@ -69,8 +78,10 @@ function getModeTokens(mode: PaletteMode): ModeTokens {
     border: '#27272a',
     borderStrong: '#3F3F46',
     cardShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px -8px rgba(0,0,0,0.55)',
+    popoverShadow: '0 1px 2px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.35)',
     appBarBg: 'rgba(9,9,11,0.72)',
     appBarShadow: 'inset 0 1px 0 0 rgba(255,255,255,0.06), 0 8px 24px rgba(0,0,0,0.35)',
+    mobileSolidBg: 'rgba(9,9,11,0.96)',
     bottomNavBg: 'rgba(9,9,11,0.78)',
     bottomNavIconColor: 'rgba(244,244,245,0.6)',
     dialogBg: 'rgba(24,24,27,0.82)',
@@ -197,20 +208,40 @@ export function getTheme(mode: PaletteMode) {
             border: `1px solid ${t.border}`,
             boxShadow: t.cardShadow,
             // Every card fades + slides in on mount — covers dashboard tiles, list rows,
-            // dialogs, and dropdown/menu papers alike without touching each page.
-            animation: 'fadeInUp 0.4s ease both'
+            // and dialogs without touching each page.
+            animation: 'fadeInUp 0.4s ease both',
+            // Menu/Select/Autocomplete/Dialog popups already animate their own open/close
+            // via MUI's Grow/Fade transition (JS-driven, per-frame inline `transform`). The
+            // fadeInUp CSS animation above was ALSO fighting over `transform` on the same
+            // element at the same time — two animation systems driving one property — which
+            // is what made dropdowns feel laggy/stuttery, especially on mobile. These also
+            // get the lighter popoverShadow instead of the full card shadow: they open/close
+            // far more often than a static card, so a cheaper-to-repaint shadow matters more
+            // than it does for content that mounts once.
+            '&.MuiPopover-paper, &.MuiMenu-paper, &.MuiAutocomplete-paper, &.MuiDialog-paper': {
+              animation: 'none',
+              boxShadow: t.popoverShadow
+            }
           }
         }
       },
       MuiDialog: {
         styleOverrides: {
-          paper: {
+          paper: ({ theme }) => ({
             borderRadius: 20,
             backgroundColor: t.dialogBg,
             backdropFilter: glassBlur,
             WebkitBackdropFilter: glassBlur,
-            border: `1px solid ${t.borderStrong}`
-          }
+            border: `1px solid ${t.borderStrong}`,
+            // backdrop-filter is one of the most GPU-expensive CSS properties there is, and
+            // a Dialog is exactly the kind of surface that opens/closes constantly on a
+            // phone — drop the blur below `sm` in favor of a near-opaque flat background.
+            [theme.breakpoints.down('sm')]: {
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
+              backgroundColor: t.mobileSolidBg
+            }
+          })
         }
       },
       MuiChip: {
@@ -233,14 +264,22 @@ export function getTheme(mode: PaletteMode) {
       },
       MuiAppBar: {
         styleOverrides: {
-          root: {
+          root: ({ theme }) => ({
             backgroundColor: t.appBarBg,
             backdropFilter: glassBlur,
             WebkitBackdropFilter: glassBlur,
             color: t.text.primary,
             borderBottom: `1px solid ${t.border}`,
-            boxShadow: t.appBarShadow
-          }
+            boxShadow: t.appBarShadow,
+            // The AppBar is sticky and always on screen, so its blur is a continuous GPU
+            // cost, not just an on-open one — every scroll/animation/modal nearby forces the
+            // browser to recomposite it. Drop it below `sm`, where that cost is most visible.
+            [theme.breakpoints.down('sm')]: {
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
+              backgroundColor: t.mobileSolidBg
+            }
+          })
         }
       },
       MuiTableCell: {
@@ -256,10 +295,10 @@ export function getTheme(mode: PaletteMode) {
       },
       MuiBottomNavigation: {
         styleOverrides: {
+          // Fixed + always-visible, same reasoning as MuiAppBar above — this one arguably
+          // matters more, since it's mobile-only in the first place.
           root: {
-            backgroundColor: t.bottomNavBg,
-            backdropFilter: glassBlur,
-            WebkitBackdropFilter: glassBlur,
+            backgroundColor: t.mobileSolidBg,
             borderTop: `1px solid ${t.border}`
           }
         }
