@@ -127,8 +127,47 @@ Space Grotesk for headings, Inter for body, **JetBrains Mono for all numeric val
   live summary cards + 7-day trend chart + quick-action tiles
 - Supabase client + `formatMoney` helper in `src/lib/supabase.ts`
 - Shared types in `src/types.ts`
+- AI chatbot (`api/chat.ts` + `src/pages/Chatbot.tsx`, route `/chat`) — see below
 
-## Not yet built (next up, in rough priority order)
+## AI chatbot (data Q&A) — built
+
+A chat screen (`src/pages/Chatbot.tsx`, route `/chat`, reachable from the AppBar robot icon
+and the Dashboard "Ask MIG" tile) where the owner can ask plain-language questions about the
+shop's own data — e.g. "how much did I sell last week?", "who owes me money right now?",
+"which size sells the most?" — answered from real Supabase data.
+
+**Provider: Google Gemini**, via `api/chat.ts`, a Vercel serverless function (Node runtime,
+same repo, auto-deployed with the rest of the app — no separate Supabase Edge Function
+deploy step). Model is `gemini-3.6-flash` called through the **Interactions API**
+(`ai.interactions.create`, `@google/genai` SDK) — Google's Interactions API reached GA on
+2026-06-22 and is now the primary interface, replacing the older `generateContent`/`contents`
+pattern. If revisiting this code, don't assume `generateContent`-shaped examples apply;
+re-check `ai.google.dev` for the current interface before making changes, since this moves.
+Conversation continuity is handled via `previous_interaction_id` chaining (Google-managed
+server-side state), not by resending message history from the client.
+
+**Architecture — SAFE TOOL-USE ONLY, never raw SQL:**
+- The AI never generates or executes SQL. It can only call four fixed, read-only functions
+  implemented directly in `api/chat.ts` (plain Supabase queries, aggregated in JS — no new
+  Postgres functions were added for this):
+  - `get_sales_summary(start_date, end_date)`
+  - `get_low_stock_items()`
+  - `get_customer_balance(customer_name)`
+  - `get_top_selling_variants(period)`
+- Manual (non-automatic) function-calling loop, capped at `MAX_TOOL_ROUNDS = 4` per request
+  to prevent runaway tool-call loops.
+- **Auth**: the frontend sends the user's Supabase `session.access_token` as a Bearer header;
+  `api/chat.ts` verifies it via `supabaseAdmin.auth.getUser(token)` before doing anything —
+  this is the real access-control boundary on an otherwise-public API route (mirrors the RLS
+  philosophy in the Auth section above: enforced server-side regardless of what the frontend
+  toggle shows).
+- The backend queries Supabase with the **service role key** (bypasses RLS — safe here
+  because the request was already verified as an authenticated user above, and every tool is
+  read-only).
+- **Env vars** (server-side only, set in Vercel project settings — never with a `VITE_`
+  prefix): `GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. Reuses the existing
+  `VITE_SUPABASE_URL` for the project URL. See `.env.example`.
+
 
 1. Login screen (needed to unblock all writes, since RLS requires authentication)
 2. Stock management: Product / Type / Variant CRUD, with cascading dropdowns pulling
@@ -141,3 +180,6 @@ Space Grotesk for headings, Inter for body, **JetBrains Mono for all numeric val
 7. Reports (daily/weekly/monthly, chart + PDF export)
 8. Settings screen (company name, logo, currency footer, auth toggle)
 9. Excel import (seed catalog) + export/backup
+
+(AI chatbot for data Q&A, originally item 10 here, is now built — see the "AI chatbot"
+section above. Reports PDF export is still outstanding — see item 7.)

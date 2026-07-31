@@ -7,6 +7,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAddAltSharp'
 import WarningIcon from '@mui/icons-material/ReportProblemSharp'
 import BarChartIcon from '@mui/icons-material/BarChartSharp'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLongSharp'
+import SmartToyIcon from '@mui/icons-material/SmartToySharp'
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts'
 import { supabase, formatMoney } from '../lib/supabase'
 
@@ -23,7 +24,8 @@ const ACTIONS: QuickAction[] = [
   { label: 'New customer', icon: <PersonAddIcon fontSize="large" />, path: '/customers/new' },
   { label: 'Low stock', icon: <WarningIcon fontSize="large" />, path: '/low-stock' },
   { label: 'Sales report', icon: <BarChartIcon fontSize="large" />, path: '/reports' },
-  { label: 'All sales', icon: <ReceiptLongIcon fontSize="large" />, path: '/sales' }
+  { label: 'All sales', icon: <ReceiptLongIcon fontSize="large" />, path: '/sales' },
+  { label: 'Ask MIG', icon: <SmartToyIcon fontSize="large" />, path: '/chat' }
 ]
 
 export default function Dashboard() {

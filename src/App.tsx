@@ -10,6 +10,7 @@ import NewCustomer from './pages/NewCustomer'
 import SalesReport from './pages/SalesReport'
 import LowStock from './pages/LowStock'
 import Settings from './pages/Settings'
+import Chatbot from './pages/Chatbot'
 import Login from './pages/Login'
 import { useAuth } from './lib/auth'
 
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/customers/new" element={<NewCustomer />} />
         <Route path="/low-stock" element={<LowStock />} />
         <Route path="/reports" element={<SalesReport />} />
+        <Route path="/chat" element={<Chatbot />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>

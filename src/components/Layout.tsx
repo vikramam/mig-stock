@@ -22,6 +22,7 @@ import BarChartIcon from '@mui/icons-material/BarChartSharp'
 import WarningIcon from '@mui/icons-material/ReportProblemSharp'
 import SettingsIcon from '@mui/icons-material/SettingsSharp'
 import LogoutIcon from '@mui/icons-material/LogoutSharp'
+import SmartToyIcon from '@mui/icons-material/SmartToySharp'
 import { useTheme } from '@mui/material/styles'
 import { useAuth } from '../lib/auth'
 
@@ -57,6 +58,9 @@ export default function Layout({ children }: PropsWithChildren) {
           <Typography variant="h6" sx={{ flexGrow: 1, letterSpacing: 0.2 }}>
             Clamp Sales Tracker
           </Typography>
+          <IconButton color="inherit" onClick={() => navigate('/chat')} aria-label="Ask MIG">
+            <SmartToyIcon />
+          </IconButton>
           <IconButton color="inherit" onClick={() => navigate('/settings')} aria-label="Settings">
             <SettingsIcon />
           </IconButton>
