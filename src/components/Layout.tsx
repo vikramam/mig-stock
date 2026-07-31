@@ -99,7 +99,17 @@ export default function Layout({ children }: PropsWithChildren) {
           </Drawer>
         )}
 
-        <Box component="main" sx={{ flex: 1, p: { xs: 2, md: 3 }, pb: { xs: 9, md: 3 }, maxWidth: 1100, mx: 'auto', width: '100%' }}>
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            p: { xs: 2, md: 3 },
+            pb: { xs: 'calc(64px + env(safe-area-inset-bottom))', md: 3 },
+            maxWidth: 1100,
+            mx: 'auto',
+            width: '100%'
+          }}
+        >
           {children ?? <Outlet />}
         </Box>
       </Box>
@@ -113,13 +123,14 @@ export default function Layout({ children }: PropsWithChildren) {
             bottom: 0,
             left: 0,
             right: 0,
-            borderTop: '1px solid',
-            borderColor: 'divider',
+            height: 'auto',
+            pb: 'env(safe-area-inset-bottom)',
+            boxShadow: '0 -1px 2px rgba(0,0,0,0.15), 0 -2px 8px rgba(0,0,0,0.2)',
             zIndex: (t) => t.zIndex.appBar
           }}
         >
           {NAV_ITEMS.map((item) => (
-            <BottomNavigationAction key={item.path} label={item.label} icon={item.icon} sx={{ minWidth: 0 }} />
+            <BottomNavigationAction key={item.path} label={item.label} icon={item.icon} />
           ))}
         </BottomNavigation>
       )}

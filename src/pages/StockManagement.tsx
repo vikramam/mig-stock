@@ -269,7 +269,7 @@ export default function StockManagement() {
 
           return (
             <Accordion key={product.id} sx={{ border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <AccordionSummary component="div" expandIcon={<ExpandMoreIcon />}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ width: '100%', pr: 1 }}>
                   <Stack direction="row" alignItems="center" gap={1}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>

@@ -89,6 +89,43 @@ export const theme = createTheme({
           color: '#6B6860'
         }
       }
+    },
+    MuiBottomNavigation: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#262420',
+          borderTop: '1px solid rgba(255,255,255,0.08)'
+        }
+      }
+    },
+    MuiBottomNavigationAction: {
+      defaultProps: { showLabel: true },
+      styleOverrides: {
+        root: ({ theme }) => ({
+          position: 'relative',
+          minWidth: 0,
+          paddingTop: 10,
+          color: 'rgba(250,248,244,0.6)',
+          '&.Mui-selected': {
+            color: theme.palette.primary.main
+          },
+          '&.Mui-selected::after': {
+            content: '""',
+            position: 'absolute',
+            top: 4,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 20,
+            height: 2,
+            borderRadius: 1,
+            backgroundColor: theme.palette.primary.main
+          }
+        }),
+        label: {
+          fontSize: '0.65rem',
+          '&.Mui-selected': { fontSize: '0.65rem' }
+        }
+      }
     }
   }
 })
