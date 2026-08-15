@@ -19,11 +19,16 @@ import {
   Stack,
   Snackbar,
   Alert,
-  Paper
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreSharp'
 import AddIcon from '@mui/icons-material/AddSharp'
 import EditIcon from '@mui/icons-material/EditSharp'
+import DeleteIcon from '@mui/icons-material/DeleteSharp'
 import InventoryIcon from '@mui/icons-material/Inventory2Sharp'
 import { supabase, formatMoney } from '../lib/supabase'
 import { Product, ProductType, Variant, Size, formatSize } from '../types'
@@ -49,9 +54,13 @@ export default function StockManagement() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showInactive, setShowInactive] = useState(false)
+  const [showDeletedVariants, setShowDeletedVariants] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; severity: 'success' | 'error' } | null>(null)
+
+  const [deleteVariantTarget, setDeleteVariantTarget] = useState<{ variant: VariantRow; typeLabel: string } | null>(null)
+  const [deletingVariant, setDeletingVariant] = useState(false)
 
   const [productDialog, setProductDialog] = useState<{ open: boolean; editing?: Product }>({ open: false })
   const [typeDialog, setTypeDialog] = useState<{
@@ -170,28 +179,68 @@ export default function StockManagement() {
       return
     }
 
-    const { data: inserted, error } = await supabase
+    // The unique (type_id, size_id) constraint means re-adding a size that was previously
+    // soft-deleted would otherwise fail as a duplicate — check for that case first and
+    // revive the existing row (with the newly entered price) instead of inserting.
+    const { data: existingRows, error: lookupError } = await supabase
       .from('variants')
-      .insert({ type_id: typeId, size_id: values.size_id, unit_price: values.unitPricePaise })
-      .select()
-      .single()
+      .select('id, is_deleted')
+      .eq('type_id', typeId)
+      .eq('size_id', values.size_id)
+      .limit(1)
 
-    if (error) {
+    if (lookupError) {
       setSaving(false)
-      setDialogError(isUniqueViolation(error) ? 'This type already has a variant with that size.' : error.message)
+      setDialogError(lookupError.message)
       return
+    }
+
+    const existing = existingRows?.[0] as { id: string; is_deleted: boolean } | undefined
+    if (existing && !existing.is_deleted) {
+      setSaving(false)
+      setDialogError('This type already has a variant with that size.')
+      return
+    }
+
+    let variantId: string
+    const reviving = !!existing
+
+    if (existing) {
+      const { error } = await supabase
+        .from('variants')
+        .update({ is_deleted: false, active: true, unit_price: values.unitPricePaise })
+        .eq('id', existing.id)
+      if (error) {
+        setSaving(false)
+        setDialogError(error.message)
+        return
+      }
+      variantId = existing.id
+    } else {
+      const { data: inserted, error } = await supabase
+        .from('variants')
+        .insert({ type_id: typeId, size_id: values.size_id, unit_price: values.unitPricePaise })
+        .select()
+        .single()
+
+      if (error) {
+        setSaving(false)
+        setDialogError(isUniqueViolation(error) ? 'This type already has a variant with that size.' : error.message)
+        return
+      }
+      variantId = inserted.id
     }
 
     if (values.openingStockQty > 0) {
       const { error: stockError } = await supabase.rpc('add_stock', {
-        p_variant_id: inserted.id,
+        p_variant_id: variantId,
         p_qty: values.openingStockQty,
-        p_note: 'Opening stock',
+        p_note: reviving ? 'Opening stock (variant restored)' : 'Opening stock',
         p_created_by: null
       })
       if (stockError) {
         setSaving(false)
-        setDialogError(`Variant created, but opening stock failed: ${stockError.message}`)
+        setDialogError(`Variant saved, but opening stock failed: ${stockError.message}`)
         void loadCatalog()
         return
       }
@@ -199,7 +248,24 @@ export default function StockManagement() {
 
     setSaving(false)
     setVariantDialog({ open: false })
-    setToast({ message: 'Variant added', severity: 'success' })
+    setToast({ message: reviving ? 'Variant restored and updated' : 'Variant added', severity: 'success' })
+    void loadCatalog()
+  }
+
+  async function confirmDeleteVariant() {
+    if (!deleteVariantTarget) return
+    setDeletingVariant(true)
+    const { error } = await supabase
+      .from('variants')
+      .update({ is_deleted: true })
+      .eq('id', deleteVariantTarget.variant.id)
+    setDeletingVariant(false)
+    if (error) {
+      setToast({ message: error.message, severity: 'error' })
+      return
+    }
+    setToast({ message: 'Variant deleted', severity: 'success' })
+    setDeleteVariantTarget(null)
     void loadCatalog()
   }
 
@@ -215,7 +281,7 @@ export default function StockManagement() {
     return (
       <Box>
         <Typography variant="h4" sx={{ mb: 2 }}>
-          Stock
+          Catalog
         </Typography>
         <RowCardsSkeleton rows={5} />
       </Box>
@@ -239,14 +305,18 @@ export default function StockManagement() {
         sx={{ mb: 2 }}
         gap={1.5}
       >
-        <Typography variant="h4">Stock</Typography>
+        <Typography variant="h4">Catalog</Typography>
         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
           <FormControlLabel
             control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
             label="Show inactive"
           />
+          <FormControlLabel
+            control={<Switch checked={showDeletedVariants} onChange={(e) => setShowDeletedVariants(e.target.checked)} />}
+            label="Show deleted variants"
+          />
           <Button variant="outlined" startIcon={<InventoryIcon />} onClick={() => navigate('/stock/add')}>
-            Add stock
+            Manage stock
           </Button>
           <Button
             variant="contained"
@@ -295,7 +365,11 @@ export default function StockManagement() {
               <AccordionDetails>
                 <Stack spacing={2}>
                   {visibleTypes.map((type) => {
-                    const visibleVariants = showInactive ? type.variants : type.variants.filter((v) => v.active)
+                    const visibleVariants = type.variants.filter((v) => {
+                      if (!showInactive && !v.active) return false
+                      if (!showDeletedVariants && v.is_deleted) return false
+                      return true
+                    })
                     return (
                       <Paper key={type.id} variant="outlined" sx={{ p: 1.5 }}>
                         <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
@@ -345,39 +419,55 @@ export default function StockManagement() {
                                   gap={1}
                                   sx={{
                                     py: 1,
-                                    opacity: variant.active ? 1 : 0.5,
+                                    opacity: variant.active && !variant.is_deleted ? 1 : 0.5,
                                     borderBottom: '1px solid',
                                     borderColor: 'divider',
                                     '&:last-of-type': { borderBottom: 'none' }
                                   }}
                                 >
                                   <Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      {formatSize(variant.sizes?.value ?? 0)}
-                                    </Typography>
+                                    <Stack direction="row" alignItems="center" gap={0.75}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                        {formatSize(variant.sizes?.value ?? 0)}
+                                      </Typography>
+                                      {variant.is_deleted && <Chip size="small" label="Deleted" />}
+                                    </Stack>
                                     <Typography variant="mono" color={variant.current_stock <= 0 ? 'error.main' : 'text.secondary'} sx={{ fontSize: 12 }}>
                                       Stock {variant.current_stock} · {formatMoney(variant.unit_price)}
                                     </Typography>
                                   </Box>
-                                  <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }}>
-                                    <Switch
-                                      size="small"
-                                      checked={variant.active}
-                                      onChange={() => void toggleVariantActive(variant)}
-                                    />
-                                    <IconButton
-                                      size="small"
-                                      onClick={() =>
-                                        setVariantDialog({
-                                          open: true,
-                                          typeLabel: `${product.name} / ${type.type_name}`,
-                                          editing: variant
-                                        })
-                                      }
-                                    >
-                                      <EditIcon fontSize="small" />
-                                    </IconButton>
-                                  </Stack>
+                                  {!variant.is_deleted && (
+                                    <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }}>
+                                      <Switch
+                                        size="small"
+                                        checked={variant.active}
+                                        onChange={() => void toggleVariantActive(variant)}
+                                      />
+                                      <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                          setVariantDialog({
+                                            open: true,
+                                            typeLabel: `${product.name} / ${type.type_name}`,
+                                            editing: variant
+                                          })
+                                        }
+                                      >
+                                        <EditIcon fontSize="small" />
+                                      </IconButton>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                          setDeleteVariantTarget({
+                                            variant,
+                                            typeLabel: `${product.name} / ${type.type_name}`
+                                          })
+                                        }
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Stack>
+                                  )}
                                 </Stack>
                               ))}
                             </Stack>
@@ -391,13 +481,18 @@ export default function StockManagement() {
                                     <TableCell align="right">Price</TableCell>
                                     <TableCell align="right">Stock</TableCell>
                                     <TableCell align="right">Active</TableCell>
-                                    <TableCell align="right">Edit</TableCell>
+                                    <TableCell align="right">Actions</TableCell>
                                   </TableRow>
                                 </TableHead>
                                 <TableBody>
                                   {visibleVariants.map((variant) => (
-                                    <TableRow key={variant.id} sx={{ opacity: variant.active ? 1 : 0.5 }}>
-                                      <TableCell>{formatSize(variant.sizes?.value ?? 0)}</TableCell>
+                                    <TableRow key={variant.id} sx={{ opacity: variant.active && !variant.is_deleted ? 1 : 0.5 }}>
+                                      <TableCell>
+                                        <Stack direction="row" alignItems="center" gap={0.75}>
+                                          {formatSize(variant.sizes?.value ?? 0)}
+                                          {variant.is_deleted && <Chip size="small" label="Deleted" />}
+                                        </Stack>
+                                      </TableCell>
                                       <TableCell align="right">
                                         <Typography variant="mono">{formatMoney(variant.unit_price)}</Typography>
                                       </TableCell>
@@ -410,25 +505,42 @@ export default function StockManagement() {
                                         </Typography>
                                       </TableCell>
                                       <TableCell align="right">
-                                        <Switch
-                                          size="small"
-                                          checked={variant.active}
-                                          onChange={() => void toggleVariantActive(variant)}
-                                        />
+                                        {!variant.is_deleted && (
+                                          <Switch
+                                            size="small"
+                                            checked={variant.active}
+                                            onChange={() => void toggleVariantActive(variant)}
+                                          />
+                                        )}
                                       </TableCell>
                                       <TableCell align="right">
-                                        <IconButton
-                                          size="small"
-                                          onClick={() =>
-                                            setVariantDialog({
-                                              open: true,
-                                              typeLabel: `${product.name} / ${type.type_name}`,
-                                              editing: variant
-                                            })
-                                          }
-                                        >
-                                          <EditIcon fontSize="small" />
-                                        </IconButton>
+                                        {!variant.is_deleted && (
+                                          <>
+                                            <IconButton
+                                              size="small"
+                                              onClick={() =>
+                                                setVariantDialog({
+                                                  open: true,
+                                                  typeLabel: `${product.name} / ${type.type_name}`,
+                                                  editing: variant
+                                                })
+                                              }
+                                            >
+                                              <EditIcon fontSize="small" />
+                                            </IconButton>
+                                            <IconButton
+                                              size="small"
+                                              onClick={() =>
+                                                setDeleteVariantTarget({
+                                                  variant,
+                                                  typeLabel: `${product.name} / ${type.type_name}`
+                                                })
+                                              }
+                                            >
+                                              <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                          </>
+                                        )}
                                       </TableCell>
                                     </TableRow>
                                   ))}
@@ -504,6 +616,23 @@ export default function StockManagement() {
         }}
         onSave={saveVariant}
       />
+
+      <Dialog open={!!deleteVariantTarget} onClose={() => setDeleteVariantTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Delete variant?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            {deleteVariantTarget && formatSize(deleteVariantTarget.variant.sizes?.value ?? 0)} of{' '}
+            {deleteVariantTarget?.typeLabel} will be hidden from the catalog, New Sale, and Manage Stock — its stock and
+            sales history are kept. Re-add the same size later via "Add variant" to bring it back with an updated price.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteVariantTarget(null)}>Cancel</Button>
+          <Button color="error" variant="contained" disabled={deletingVariant} onClick={() => void confirmDeleteVariant()}>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)}>
         {toast ? (

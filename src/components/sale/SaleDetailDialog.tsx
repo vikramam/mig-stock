@@ -66,6 +66,10 @@ export default function SaleDetailDialog({
   const [editing, setEditing] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   useEffect(() => {
     if (open && saleId) void loadDetail(saleId)
     if (!open) {
@@ -77,6 +81,8 @@ export default function SaleDetailDialog({
       setCancelError(null)
       setConfirmingEdit(false)
       setEditError(null)
+      setConfirmingDelete(false)
+      setDeleteError(null)
     }
   }, [open, saleId])
 
@@ -147,6 +153,26 @@ export default function SaleDetailDialog({
     setConfirmingCancel(false)
     await loadDetail(sale.id)
     onChanged()
+  }
+
+  // Only offered for already-cancelled sales — a hard delete, unlike Cancel, which keeps
+  // the sale as an audit-trail row. sale_items and payments cascade-delete with it; the
+  // stock_movements ledger rows for this sale are left untouched (the ledger stays the
+  // permanent source of truth for stock even after the sale record itself is gone).
+  async function handleDeleteSale() {
+    if (!sale) return
+    setDeleting(true)
+    setDeleteError(null)
+    const { error } = await supabase.from('sales').delete().eq('id', sale.id)
+
+    setDeleting(false)
+    if (error) {
+      setDeleteError(error.message)
+      return
+    }
+
+    onChanged()
+    onClose()
   }
 
   // Editing a sale = cancel it and reopen New Sale pre-filled with its items, per the
@@ -393,6 +419,31 @@ export default function SaleDetailDialog({
                       <Button onClick={() => setConfirmingCancel(false)}>Back</Button>
                       <Button color="error" variant="contained" disabled={cancelling} onClick={() => void handleCancelSale()}>
                         Confirm cancellation
+                      </Button>
+                    </Stack>
+                  </Stack>
+                )}
+              </>
+            )}
+
+            {sale.status === 'cancelled' && (
+              <>
+                <Divider />
+                {!confirmingDelete ? (
+                  <Button color="error" variant="outlined" onClick={() => setConfirmingDelete(true)} sx={{ alignSelf: 'flex-start' }}>
+                    Delete permanently
+                  </Button>
+                ) : (
+                  <Stack spacing={1.5}>
+                    <Alert severity="error">
+                      This permanently removes this cancelled sale and its line items and payments from your records.
+                      Unlike Cancel, this cannot be undone — there's no audit-trail row left behind.
+                    </Alert>
+                    {deleteError && <Alert severity="error">{deleteError}</Alert>}
+                    <Stack direction="row" gap={1}>
+                      <Button onClick={() => setConfirmingDelete(false)}>Back</Button>
+                      <Button color="error" variant="contained" disabled={deleting} onClick={() => void handleDeleteSale()}>
+                        Delete permanently
                       </Button>
                     </Stack>
                   </Stack>

@@ -51,6 +51,9 @@ create table variants (
   unit_price     integer not null check (unit_price >= 0),   -- stored in paise (INR smallest unit)
   current_stock  integer not null default 0, -- CACHED value only. Source of truth = stock_movements ledger.
   active         boolean not null default true,
+  is_deleted     boolean not null default false, -- soft delete: hidden from Catalog/New Sale/Manage Stock by
+                                                   -- default; re-adding the same type+size revives this row
+                                                   -- instead of failing the unique constraint below
   created_at     timestamptz not null default now(),
   unique (type_id, size_id)
 );
@@ -88,6 +91,7 @@ create table customers (
   name        text not null,
   phone       text,
   note        text,
+  is_deleted  boolean not null default false, -- soft delete: hidden from pickers/lists, sales keep showing their name
   created_at  timestamptz not null default now()
 );
 
@@ -291,6 +295,56 @@ begin
 end;
 $$;
 
+-- Directly sets a variant's current_stock to a new value (e.g. after a physical
+-- recount), writing one 'adjustment' stock_movements row.
+create or replace function adjust_stock(
+  p_variant_id  uuid,
+  p_new_stock   integer,
+  p_note        text,
+  p_created_by  text
+) returns void
+language plpgsql
+as $$
+declare
+  v_before_stock integer;
+begin
+  select current_stock into v_before_stock from variants where id = p_variant_id for update;
+
+  update variants set current_stock = p_new_stock where id = p_variant_id;
+
+  insert into stock_movements (variant_id, change_qty, reason, balance_before, balance_after, note, created_by)
+  values (p_variant_id, p_new_stock - v_before_stock, 'adjustment', v_before_stock, p_new_stock, p_note, p_created_by);
+end;
+$$;
+
+-- Reverses the most recent stock_movements row for a variant, but only if it's still
+-- the latest movement and its reason is 'purchase' — i.e. nothing else has touched that
+-- variant since the addition was made. Deletes the row outright (a true undo of a
+-- just-made mistake) rather than inserting a reversal, unlike cancel_sale.
+create or replace function undo_last_stock_addition(
+  p_variant_id  uuid
+) returns void
+language plpgsql
+as $$
+declare
+  v_movement record;
+begin
+  select * into v_movement
+  from stock_movements
+  where variant_id = p_variant_id
+  order by created_at desc
+  limit 1
+  for update;
+
+  if v_movement.id is null or v_movement.reason <> 'purchase' then
+    raise exception 'No recent stock addition to undo for this variant';
+  end if;
+
+  update variants set current_stock = v_movement.balance_before where id = p_variant_id;
+  delete from stock_movements where id = v_movement.id;
+end;
+$$;
+
 -- Records a payment against a pending sale, atomically updates cached totals.
 create or replace function record_payment(
   p_sale_id  uuid,
@@ -362,6 +416,7 @@ join sizes s on s.id = v.size_id
 join products p on p.id = pt.product_id
 where v.current_stock < (select low_stock_threshold from settings where id = 1)
   and v.active = true
+  and v.is_deleted = false
 order by v.current_stock asc;
 
 -- ============================================================

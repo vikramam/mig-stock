@@ -9,12 +9,14 @@ export interface CustomerDialogValues {
 
 export default function CustomerDialog({
   open,
+  initial,
   saving,
   error,
   onClose,
   onSave
 }: {
   open: boolean
+  initial?: CustomerDialogValues
   saving: boolean
   error: string | null
   onClose: () => void
@@ -26,17 +28,17 @@ export default function CustomerDialog({
 
   useEffect(() => {
     if (open) {
-      setName('')
-      setPhone('')
-      setNote('')
+      setName(initial?.name ?? '')
+      setPhone(initial?.phone ?? '')
+      setNote(initial?.note ?? '')
     }
-  }, [open])
+  }, [open, initial])
 
   const valid = name.trim().length > 0
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Add customer</DialogTitle>
+      <DialogTitle>{initial ? 'Edit customer' : 'Add customer'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
@@ -59,7 +61,7 @@ export default function CustomerDialog({
           disabled={!valid || saving}
           onClick={() => onSave({ name: name.trim(), phone: phone.trim(), note: note.trim() })}
         >
-          Save
+          {initial ? 'Save changes' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>

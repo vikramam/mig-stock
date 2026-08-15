@@ -32,7 +32,7 @@ import { useThemeMode } from '../lib/themeMode'
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
   { label: 'New sale', path: '/sale/new', icon: <SellIcon /> },
-  { label: 'Stock', path: '/stock', icon: <InventoryIcon /> },
+  { label: 'Catalog', path: '/catalog', icon: <InventoryIcon /> },
   { label: 'Reports', path: '/reports', icon: <BarChartIcon /> },
   { label: 'Low stock', path: '/low-stock', icon: <WarningIcon /> }
 ]

@@ -76,7 +76,10 @@ export default function NewSale() {
     setLoading(true)
     setLoadError(null)
     const [{ data: customersData, error: customersError }, { data: variantsData, error: variantsError }] =
-      await Promise.all([supabase.from('customers').select('*').order('name', { ascending: true }), fetchActiveVariants()])
+      await Promise.all([
+        supabase.from('customers').select('*').eq('is_deleted', false).order('name', { ascending: true }),
+        fetchActiveVariants()
+      ])
 
     if (customersError) {
       setLoadError(customersError.message)

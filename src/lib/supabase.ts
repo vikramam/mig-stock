@@ -49,6 +49,7 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
       'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types(type_name, product_id, products(name))'
     )
     .eq('active', true)
+    .eq('is_deleted', false)
 
   if (error) return { data: [], error: error.message }
 

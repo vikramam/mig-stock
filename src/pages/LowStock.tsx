@@ -30,6 +30,7 @@ export default function LowStock() {
 
   const [search, setSearch] = useState('')
   const [productFilter, setProductFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
   const [oversoldOnly, setOversoldOnly] = useState(false)
 
   useEffect(() => {
@@ -62,9 +63,21 @@ export default function LowStock() {
     return Array.from(names).sort((a, b) => a.localeCompare(b))
   }, [rows])
 
+  const typeOptions = useMemo(() => {
+    const relevant = productFilter ? rows.filter((r) => r.product_name === productFilter) : rows
+    const names = new Set(relevant.map((r) => r.type_name))
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [rows, productFilter])
+
+  function handleProductFilterChange(value: string) {
+    setProductFilter(value)
+    setTypeFilter('')
+  }
+
   const searchLower = search.trim().toLowerCase()
   const visibleRows = rows.filter((row) => {
     if (productFilter && row.product_name !== productFilter) return false
+    if (typeFilter && row.type_name !== typeFilter) return false
     if (oversoldOnly && row.current_stock >= 0) return false
     if (searchLower) {
       const matches =
@@ -115,11 +128,26 @@ export default function LowStock() {
           label="Product"
           size="small"
           value={productFilter}
-          onChange={(e) => setProductFilter(e.target.value)}
+          onChange={(e) => handleProductFilterChange(e.target.value)}
           sx={{ minWidth: 160 }}
         >
           <MenuItem value="">All</MenuItem>
           {productOptions.map((name) => (
+            <MenuItem key={name} value={name}>
+              {name}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="Type"
+          size="small"
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          sx={{ minWidth: 160 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          {typeOptions.map((name) => (
             <MenuItem key={name} value={name}>
               {name}
             </MenuItem>

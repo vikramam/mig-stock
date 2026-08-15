@@ -3,7 +3,7 @@ import { Box, Grid, Paper, Typography, Chip, Stack } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import SellIcon from '@mui/icons-material/PointOfSaleSharp'
 import InventoryIcon from '@mui/icons-material/Inventory2Sharp'
-import PersonAddIcon from '@mui/icons-material/PersonAddAltSharp'
+import PeopleIcon from '@mui/icons-material/PeopleAltSharp'
 import WarningIcon from '@mui/icons-material/ReportProblemSharp'
 import BarChartIcon from '@mui/icons-material/BarChartSharp'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLongSharp'
@@ -22,8 +22,8 @@ interface QuickAction {
 
 const ACTIONS: QuickAction[] = [
   { label: 'New sale', icon: <SellIcon fontSize="large" />, path: '/sale/new', accent: true },
-  { label: 'Add stock', icon: <InventoryIcon fontSize="large" />, path: '/stock/add' },
-  { label: 'New customer', icon: <PersonAddIcon fontSize="large" />, path: '/customers/new' },
+  { label: 'Manage stock', icon: <InventoryIcon fontSize="large" />, path: '/stock/add' },
+  { label: 'Manage customers', icon: <PeopleIcon fontSize="large" />, path: '/customers' },
   { label: 'Low stock', icon: <WarningIcon fontSize="large" />, path: '/low-stock' },
   { label: 'Sales report', icon: <BarChartIcon fontSize="large" />, path: '/reports' },
   { label: 'All sales', icon: <ReceiptLongIcon fontSize="large" />, path: '/sales' },

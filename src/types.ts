@@ -30,6 +30,7 @@ export interface Variant {
   unit_price: number // paise
   current_stock: number
   active: boolean
+  is_deleted: boolean
 }
 
 export interface LowStockRow {
@@ -46,6 +47,7 @@ export interface Customer {
   name: string
   phone: string | null
   note: string | null
+  is_deleted: boolean
 }
 
 export type PaymentStatus = 'paid' | 'pending'
