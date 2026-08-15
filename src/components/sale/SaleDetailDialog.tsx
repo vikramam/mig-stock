@@ -203,6 +203,10 @@ export default function SaleDetailDialog({
     })
   }
 
+  const totalDiscount = items.reduce((sum, it) => sum + it.discount_amount, 0)
+  const hasDiscount = totalDiscount > 0
+  const subtotal = items.reduce((sum, it) => sum + it.qty * it.unit_price_at_sale, 0)
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -268,6 +272,7 @@ export default function SaleDetailDialog({
                   <TableCell>Item</TableCell>
                   <TableCell align="right">Qty</TableCell>
                   <TableCell align="right">Price</TableCell>
+                  {hasDiscount && <TableCell align="right">Discount</TableCell>}
                   <TableCell align="right">Line total</TableCell>
                 </TableRow>
               </TableHead>
@@ -279,6 +284,19 @@ export default function SaleDetailDialog({
                     <TableCell align="right">
                       <Typography variant="mono">{formatMoney(item.unit_price_at_sale)}</Typography>
                     </TableCell>
+                    {hasDiscount && (
+                      <TableCell align="right">
+                        {item.discount_amount > 0 ? (
+                          <Typography variant="mono" color="success.main">
+                            −{formatMoney(item.discount_amount)}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell align="right">
                       <Typography variant="mono">{formatMoney(item.line_total)}</Typography>
                     </TableCell>
@@ -290,6 +308,24 @@ export default function SaleDetailDialog({
             <Divider />
 
             <Stack spacing={0.5}>
+              {hasDiscount && (
+                <>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">
+                      Subtotal
+                    </Typography>
+                    <Typography variant="mono">{formatMoney(subtotal)}</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2" color="success.main">
+                      Discount
+                    </Typography>
+                    <Typography variant="mono" color="success.main">
+                      −{formatMoney(totalDiscount)}
+                    </Typography>
+                  </Stack>
+                </>
+              )}
               <Stack direction="row" justifyContent="space-between">
                 <Typography variant="body2" color="text.secondary">
                   Total

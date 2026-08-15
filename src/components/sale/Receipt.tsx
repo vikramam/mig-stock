@@ -13,6 +13,7 @@ export interface ReceiptItem {
   imageUrl: string | null
   qty: number
   unitPrice: number
+  discountAmount: number // paise, total for this line — already subtracted out of lineTotal
   lineTotal: number
 }
 
@@ -38,6 +39,7 @@ export interface ReceiptData {
 const RECEIPT_MUTED = '#6B6860'
 const RECEIPT_DIVIDER = '#DAD6CC'
 const RECEIPT_ACCENT_GRADIENT = 'linear-gradient(90deg, #E0A461, #C97A2B, #9C5D1E)'
+const RECEIPT_DISCOUNT = '#2F7A34' // same green as the "Paid in full" pill, for a consistent "good news" color
 
 // Display-only formatting — never touches the stored receipt_no/item_snapshot, both of
 // which are frozen historical data (see "Sales" and "Receipt" sections in CLAUDE.md).
@@ -57,6 +59,8 @@ function formatItemLabelForDisplay(label: string): string {
 
 const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Receipt({ data }, ref) {
   const [logoFailed, setLogoFailed] = useState(false)
+  const totalDiscount = data.items.reduce((sum, item) => sum + item.discountAmount, 0)
+  const subtotal = data.total + totalDiscount
 
   return (
     <Box
@@ -121,6 +125,11 @@ const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Recei
               <Typography variant="caption" sx={{ color: RECEIPT_MUTED }}>
                 {item.qty} x {formatMoney(item.unitPrice)}
               </Typography>
+              {item.discountAmount > 0 && (
+                <Typography variant="caption" sx={{ color: RECEIPT_DISCOUNT, display: 'block' }}>
+                  Discount: −{formatMoney(item.discountAmount)}
+                </Typography>
+              )}
             </Box>
             <Typography variant="mono">{formatMoney(item.lineTotal)}</Typography>
           </Stack>
@@ -130,6 +139,26 @@ const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(function Recei
       <Divider sx={{ my: 1.5, borderColor: RECEIPT_DIVIDER }} />
 
       <Stack spacing={0.5}>
+        {totalDiscount > 0 && (
+          <>
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="body2" sx={{ color: RECEIPT_MUTED }}>
+                Subtotal
+              </Typography>
+              <Typography variant="mono" sx={{ color: RECEIPT_MUTED }}>
+                {formatMoney(subtotal)}
+              </Typography>
+            </Stack>
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="body2" sx={{ color: RECEIPT_DISCOUNT }}>
+                Discount
+              </Typography>
+              <Typography variant="mono" sx={{ color: RECEIPT_DISCOUNT }}>
+                −{formatMoney(totalDiscount)}
+              </Typography>
+            </Stack>
+          </>
+        )}
         <Stack direction="row" justifyContent="space-between">
           <Typography variant="body2">Total</Typography>
           <Typography variant="mono">{formatMoney(data.total)}</Typography>

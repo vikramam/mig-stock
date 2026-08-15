@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Alert, Stack } from '@mui/material'
+import { parseRupeesToPaise } from '../../lib/supabase'
 
 export interface TypeDialogValues {
   type_name: string
+  default_discount: number // paise, per unit
 }
 
 export default function TypeDialog({
@@ -23,9 +25,13 @@ export default function TypeDialog({
   onSave: (values: TypeDialogValues) => void
 }) {
   const [typeName, setTypeName] = useState(initial?.type_name ?? '')
+  const [discount, setDiscount] = useState(initial ? String(initial.default_discount / 100) : '')
 
   useEffect(() => {
-    if (open) setTypeName(initial?.type_name ?? '')
+    if (open) {
+      setTypeName(initial?.type_name ?? '')
+      setDiscount(initial ? String(initial.default_discount / 100) : '')
+    }
   }, [open, initial])
 
   const valid = typeName.trim().length > 0
@@ -44,11 +50,29 @@ export default function TypeDialog({
             autoFocus
             fullWidth
           />
+          <TextField
+            label="Default discount (Rs., per unit)"
+            type="number"
+            inputProps={{ step: '0.01', min: 0 }}
+            value={discount}
+            onChange={(e) => setDiscount(e.target.value)}
+            helperText='Applied per unit when "Apply discount" is clicked on New Sale. Leave blank for no discount.'
+            fullWidth
+          />
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={!valid || saving} onClick={() => onSave({ type_name: typeName.trim() })}>
+        <Button
+          variant="contained"
+          disabled={!valid || saving}
+          onClick={() =>
+            onSave({
+              type_name: typeName.trim(),
+              default_discount: discount.trim() ? parseRupeesToPaise(discount) : 0
+            })
+          }
+        >
           Save
         </Button>
       </DialogActions>

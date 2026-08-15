@@ -22,11 +22,15 @@ create table products (
 -- then explicitly dropped (see migration_005_retire_width.sql + migration_006_drop_width.sql).
 -- Do NOT reintroduce a width column unless the owner explicitly asks for it again.
 create table product_types (
-  id          uuid primary key default gen_random_uuid(),
-  product_id  uuid not null references products(id) on delete restrict,
-  type_name   text not null,                 -- e.g. "Cruiser Clamp"
-  active      boolean not null default true,
-  created_at  timestamptz not null default now(),
+  id                uuid primary key default gen_random_uuid(),
+  product_id        uuid not null references products(id) on delete restrict,
+  type_name         text not null,                 -- e.g. "Cruiser Clamp"
+  active            boolean not null default true,
+  default_discount  integer not null default 0 check (default_discount >= 0), -- paise, PER UNIT.
+    -- Admin-editable (Catalog > Edit type). Applied to a sale line as
+    -- default_discount * qty only when the cashier clicks "Apply discount" on New Sale —
+    -- never automatic, and never a per-sale override of this value.
+  created_at        timestamptz not null default now(),
   unique (product_id, type_name)
 );
 
@@ -131,6 +135,10 @@ create table sale_items (
   item_snapshot        text not null,          -- frozen "Clamp / Cruiser Clamp 1.5in / 2in" for receipts
   qty                 integer not null check (qty > 0),
   unit_price_at_sale  integer not null check (unit_price_at_sale >= 0),
+  discount_amount     integer not null default 0 check (discount_amount >= 0), -- frozen total discount
+    -- for this line (the type's default_discount * qty at the moment "Apply discount" was
+    -- clicked) — line_total already has this subtracted out, so nothing downstream needs
+    -- to know discounts exist to add up correctly.
   line_total          integer not null
 );
 
@@ -175,7 +183,10 @@ insert into settings (id) values (1);
 --   - decrements variant stock and writes a ledger row per line
 --   - inserts an initial payment row if any amount was paid upfront
 --
--- items param shape: jsonb array of { variant_id, qty, unit_price, item_snapshot }
+-- items param shape: jsonb array of { variant_id, qty, unit_price, item_snapshot, discount_amount }
+-- discount_amount is optional (defaults to 0) — the total discount for that line, already
+-- qty-multiplied by the caller (New Sale's "Apply discount" reads each variant's type
+-- default_discount and multiplies by qty before sending it here).
 create or replace function commit_sale(
   p_customer_id   uuid,
   p_items         jsonb,
@@ -192,6 +203,7 @@ declare
   v_variant_id    uuid;
   v_qty           integer;
   v_price         integer;
+  v_discount      integer;
   v_line_total    integer;
   v_before_stock  integer;
   v_after_stock   integer;
@@ -199,7 +211,9 @@ declare
 begin
   -- 1. compute total first
   for v_item in select * from jsonb_array_elements(p_items) loop
-    v_total := v_total + (v_item->>'qty')::integer * (v_item->>'unit_price')::integer;
+    v_total := v_total
+      + (v_item->>'qty')::integer * (v_item->>'unit_price')::integer
+      - coalesce((v_item->>'discount_amount')::integer, 0);
   end loop;
 
   v_status := case when p_amount_paid >= v_total then 'paid' else 'pending' end;
@@ -214,10 +228,11 @@ begin
     v_variant_id := (v_item->>'variant_id')::uuid;
     v_qty        := (v_item->>'qty')::integer;
     v_price      := (v_item->>'unit_price')::integer;
-    v_line_total := v_qty * v_price;
+    v_discount   := coalesce((v_item->>'discount_amount')::integer, 0);
+    v_line_total := v_qty * v_price - v_discount;
 
-    insert into sale_items (sale_id, variant_id, item_snapshot, qty, unit_price_at_sale, line_total)
-    values (v_sale_id, v_variant_id, v_item->>'item_snapshot', v_qty, v_price, v_line_total);
+    insert into sale_items (sale_id, variant_id, item_snapshot, qty, unit_price_at_sale, discount_amount, line_total)
+    values (v_sale_id, v_variant_id, v_item->>'item_snapshot', v_qty, v_price, v_discount, v_line_total);
 
     select current_stock into v_before_stock from variants where id = v_variant_id for update;
     v_after_stock := v_before_stock - v_qty;  -- allowed to go negative (overselling permitted)

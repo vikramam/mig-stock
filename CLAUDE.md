@@ -48,15 +48,42 @@ Overselling is ALLOWED — stock can go negative. Do not add validation blocking
 
 - One sale (`sales`) has multiple `sale_items` (multi-product-per-receipt, confirmed
   requirement).
-- No tax or discount concept anywhere — these are informal receipts, not tax invoices.
+- No tax concept anywhere — these are informal receipts, not tax invoices.
 - Money is stored as INTEGER PAISE everywhere, never floats. Format for display only,
   as "Rs. 1,234.00" (see `formatMoney` in `src/lib/supabase.ts`). Currency is INR, always
   shown with the "Rs." prefix (not the ₹ symbol).
-- `sale_items` snapshots `item_snapshot` (name/type/size) and `unit_price_at_sale` at the
-  time of sale — so editing a product later never rewrites an old receipt.
+- `sale_items` snapshots `item_snapshot` (name/type/size), `unit_price_at_sale`, and
+  `discount_amount` at the time of sale — so editing a product/type later never rewrites
+  an old receipt.
 - **Receipt numbers**: sequential, format `MIG_INV-001`, `MIG_INV-002`, ... generated via
   a Postgres sequence (`receipt_seq`) in the `sales` table default. "MIG" is the company's
   shorthand name.
+
+## Discounts (per product type, admin-editable default — not per-sale)
+
+Reverses an earlier "no discount" decision — the owner explicitly asked for this later, so
+if you see old references saying otherwise (this file's own history included), the
+current shape is what's below.
+
+- Each **product type** (not product, not variant/size) has one `default_discount`
+  (`product_types.default_discount`, integer paise, **per unit**, not a percentage).
+  Editable any time via Catalog > Edit type (`TypeDialog.tsx`) — an admin-only setting,
+  the same way `unit_price` is set per variant.
+- On New Sale, discount is **never automatic**. Clicking **"Apply discount"** is the only
+  way it's ever applied — it reads each cart line's variant -> type -> `default_discount`
+  and multiplies by that line's qty, for every line in the cart, in one action.
+- **No per-sale override** — there is no field to type in a custom discount for a
+  one-off sale. The amount applied is always whatever the type's `default_discount`
+  currently is at the moment the button is clicked; to change it you edit the type in
+  Catalog, not the sale.
+- The New Sale cart shows a per-line "Discount" column/caption (only when non-zero) plus
+  a cart-total "Discount applied" line, so it's visible exactly which line items got a
+  discount and how much, before the sale is completed.
+- At commit time (`commit_sale()`), each line's discount is frozen into
+  `sale_items.discount_amount`, and `line_total = qty * unit_price_at_sale -
+  discount_amount` — so `sales.total` and every downstream read (receipts, sale detail,
+  reports) already reflect the discount with no separate handling needed. Changing a
+  type's `default_discount` later never rewrites past sales, same as `unit_price`.
 
 ## Payments
 
@@ -192,7 +219,9 @@ any future shadow additions here ring-style for the same reason.
 
 - No cost price / profit / margin tracking — revenue only.
 - No fractional quantities — always whole units.
-- No tax or discount on receipts.
+- No tax on receipts.
+- No per-sale discount override — discount is only ever the product type's current
+  `default_discount`, set by an admin in Catalog (see "Discounts" section above).
 - No per-product low-stock threshold — one global number.
 - No offline support — it's a web app, always-online is fine.
 

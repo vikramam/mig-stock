@@ -10,6 +10,7 @@ export interface ProductType {
   product_id: string
   type_name: string
   active: boolean
+  default_discount: number // paise, per unit — applied via "Apply discount" on New Sale
 }
 
 export interface Size {
@@ -75,6 +76,7 @@ export interface SaleItem {
   item_snapshot: string
   qty: number
   unit_price_at_sale: number
+  discount_amount: number // paise, total for this line — already subtracted out of line_total
   line_total: number
 }
 
@@ -97,6 +99,7 @@ export interface VariantWithContext {
   type_name: string
   product_id: string
   product_name: string
+  default_discount: number // paise, per unit — resolved from the type
 }
 
 // Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp / 2""

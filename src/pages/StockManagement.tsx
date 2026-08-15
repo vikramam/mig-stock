@@ -131,7 +131,7 @@ export default function StockManagement() {
   }
 
   // ---------- Product type ----------
-  async function saveType(values: { type_name: string }) {
+  async function saveType(values: { type_name: string; default_discount: number }) {
     setSaving(true)
     setDialogError(null)
     const { editing, productId } = typeDialog
@@ -371,45 +371,53 @@ export default function StockManagement() {
                       return true
                     })
                     return (
-                      <Paper key={type.id} variant="outlined" sx={{ p: 1.5 }}>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1}>
-                          <Stack direction="row" alignItems="center" gap={1}>
-                            <Typography variant="subtitle2">{type.type_name}</Typography>
-                            {!type.active && <Chip size="small" label="Inactive" />}
+                      <Accordion
+                        key={type.id}
+                        sx={{ border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}
+                      >
+                        <AccordionSummary component="div" expandIcon={<ExpandMoreIcon />}>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ width: '100%', pr: 1 }}>
+                            <Stack direction="row" alignItems="center" gap={1}>
+                              <Typography variant="subtitle2">{type.type_name}</Typography>
+                              {!type.active && <Chip size="small" label="Inactive" />}
+                              {type.default_discount > 0 && (
+                                <Chip size="small" variant="outlined" label={`Discount ${formatMoney(type.default_discount)}/unit`} />
+                              )}
+                            </Stack>
+                            <Stack direction="row" alignItems="center" gap={0.5} onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="small"
+                                startIcon={<AddIcon fontSize="small" />}
+                                onClick={() =>
+                                  setVariantDialog({
+                                    open: true,
+                                    typeId: type.id,
+                                    typeLabel: `${product.name} / ${type.type_name}`,
+                                    editing: undefined
+                                  })
+                                }
+                              >
+                                Add variant
+                              </Button>
+                              <IconButton
+                                size="small"
+                                onClick={() => setTypeDialog({ open: true, productName: product.name, editing: type })}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <Switch size="small" checked={type.active} onChange={() => void toggleTypeActive(type)} />
+                            </Stack>
                           </Stack>
-                          <Stack direction="row" alignItems="center" gap={0.5}>
-                            <Button
-                              size="small"
-                              startIcon={<AddIcon fontSize="small" />}
-                              onClick={() =>
-                                setVariantDialog({
-                                  open: true,
-                                  typeId: type.id,
-                                  typeLabel: `${product.name} / ${type.type_name}`,
-                                  editing: undefined
-                                })
-                              }
-                            >
-                              Add variant
-                            </Button>
-                            <IconButton
-                              size="small"
-                              onClick={() => setTypeDialog({ open: true, productName: product.name, editing: type })}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            <Switch size="small" checked={type.active} onChange={() => void toggleTypeActive(type)} />
-                          </Stack>
-                        </Stack>
-
+                        </AccordionSummary>
+                        <AccordionDetails>
                         {visibleVariants.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
                             No variants yet.
                           </Typography>
                         ) : (
                           <>
                             {/* Mobile: compact row list — a 5-column table is too tight on a phone */}
-                            <Stack sx={{ mt: 1, display: { xs: 'flex', sm: 'none' } }}>
+                            <Stack sx={{ display: { xs: 'flex', sm: 'none' } }}>
                               {visibleVariants.map((variant) => (
                                 <Stack
                                   key={variant.id}
@@ -473,7 +481,7 @@ export default function StockManagement() {
                             </Stack>
 
                             {/* Desktop/tablet: table */}
-                            <Box sx={{ mt: 1, overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
+                            <Box sx={{ overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
                               <Table size="small">
                                 <TableHead>
                                   <TableRow>
@@ -549,7 +557,8 @@ export default function StockManagement() {
                             </Box>
                           </>
                         )}
-                      </Paper>
+                        </AccordionDetails>
+                      </Accordion>
                     )
                   })}
 
@@ -589,7 +598,11 @@ export default function StockManagement() {
       <TypeDialog
         open={typeDialog.open}
         productName={typeDialog.productName ?? ''}
-        initial={typeDialog.editing ? { type_name: typeDialog.editing.type_name } : undefined}
+        initial={
+          typeDialog.editing
+            ? { type_name: typeDialog.editing.type_name, default_discount: typeDialog.editing.default_discount }
+            : undefined
+        }
         saving={saving}
         error={dialogError}
         onClose={() => {

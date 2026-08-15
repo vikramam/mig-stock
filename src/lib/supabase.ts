@@ -36,6 +36,7 @@ interface VariantContextRow {
   product_types: {
     type_name: string
     product_id: string
+    default_discount: number
     products: { name: string } | null
   } | null
 }
@@ -46,7 +47,7 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
   const { data, error } = await supabase
     .from('variants')
     .select(
-      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types(type_name, product_id, products(name))'
+      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types(type_name, product_id, default_discount, products(name))'
     )
     .eq('active', true)
     .eq('is_deleted', false)
@@ -65,7 +66,8 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
       active: v.active,
       type_name: v.product_types!.type_name,
       product_id: v.product_types!.product_id,
-      product_name: v.product_types!.products?.name ?? 'Unknown product'
+      product_name: v.product_types!.products?.name ?? 'Unknown product',
+      default_discount: v.product_types!.default_discount
     }))
     .sort((a, b) => a.product_name.localeCompare(b.product_name) || a.type_name.localeCompare(b.type_name))
 

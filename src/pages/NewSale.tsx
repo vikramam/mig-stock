@@ -20,6 +20,7 @@ import {
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/DeleteOutlineSharp'
 import PersonAddIcon from '@mui/icons-material/PersonAddAltSharp'
+import PaymentsIcon from '@mui/icons-material/PaymentsSharp'
 import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants } from '../lib/supabase'
 import { Customer, VariantWithContext, formatVariantLabel, formatSize } from '../types'
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
@@ -58,6 +59,7 @@ export default function NewSale() {
   const [pickTypeId, setPickTypeId] = useState('')
   const [pickVariantId, setPickVariantId] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
+  const [discountApplied, setDiscountApplied] = useState(false)
 
   const [amountPaid, setAmountPaid] = useState('')
   const [note, setNote] = useState('')
@@ -225,7 +227,28 @@ export default function NewSale() {
     setCustomerDialogOpen(false)
   }
 
-  const total = cart.reduce((sum, l) => sum + l.qty * l.variant.unit_price, 0)
+  // Discount is never automatic — it only applies once "Apply discount" is clicked, and
+  // reads whatever each variant's type default_discount currently is at that moment (no
+  // per-sale override, per the spec). Derived from cart qty rather than frozen per line,
+  // so it stays correct if a quantity changes after the button is clicked.
+  function lineDiscount(line: CartLine): number {
+    return discountApplied ? line.variant.default_discount * line.qty : 0
+  }
+
+  function lineTotal(line: CartLine): number {
+    return line.qty * line.variant.unit_price - lineDiscount(line)
+  }
+
+  function handleApplyDiscount() {
+    setDiscountApplied(true)
+  }
+
+  function handleRemoveDiscount() {
+    setDiscountApplied(false)
+  }
+
+  const totalDiscount = cart.reduce((sum, l) => sum + lineDiscount(l), 0)
+  const total = cart.reduce((sum, l) => sum + lineTotal(l), 0)
   const amountPaidPaise = parseRupeesToPaise(amountPaid || '0')
   const balanceDue = Math.max(total - amountPaidPaise, 0)
   const valid = cart.length > 0 && cart.every((l) => l.qty > 0)
@@ -239,7 +262,8 @@ export default function NewSale() {
       variant_id: l.variant.id,
       qty: l.qty,
       unit_price: l.variant.unit_price,
-      item_snapshot: formatVariantLabel(l.variant)
+      item_snapshot: formatVariantLabel(l.variant),
+      discount_amount: lineDiscount(l)
     }))
 
     const { data: saleId, error } = await supabase.rpc('commit_sale', {
@@ -262,6 +286,7 @@ export default function NewSale() {
     setSuccess(sale ? { receiptNo: sale.receipt_no, total: sale.total, balanceDue: sale.balance_due } : null)
     setReceiptSaleId(saleId)
     setCart([])
+    setDiscountApplied(false)
     setSelectedCustomer(null)
     setPickProductId('')
     setPickTypeId('')
@@ -418,9 +443,16 @@ export default function NewSale() {
                   </Stack>
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
                     <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
-                    <Typography variant="mono" sx={{ fontWeight: 600 }}>
-                      {formatMoney(line.qty * line.variant.unit_price)}
-                    </Typography>
+                    <Box sx={{ textAlign: 'right' }}>
+                      {lineDiscount(line) > 0 && (
+                        <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
+                          −{formatMoney(lineDiscount(line))} discount
+                        </Typography>
+                      )}
+                      <Typography variant="mono" sx={{ fontWeight: 600 }}>
+                        {formatMoney(lineTotal(line))}
+                      </Typography>
+                    </Box>
                   </Stack>
                 </Paper>
               ))}
@@ -435,6 +467,7 @@ export default function NewSale() {
                     <TableCell>Size</TableCell>
                     <TableCell align="right">Price</TableCell>
                     <TableCell align="right">Qty</TableCell>
+                    {discountApplied && <TableCell align="right">Discount</TableCell>}
                     <TableCell align="right">Line total</TableCell>
                     <TableCell align="right"></TableCell>
                   </TableRow>
@@ -457,8 +490,21 @@ export default function NewSale() {
                       <TableCell align="right">
                         <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
                       </TableCell>
+                      {discountApplied && (
+                        <TableCell align="right">
+                          {lineDiscount(line) > 0 ? (
+                            <Typography variant="mono" color="success.main">
+                              −{formatMoney(lineDiscount(line))}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell align="right">
-                        <Typography variant="mono">{formatMoney(line.qty * line.variant.unit_price)}</Typography>
+                        <Typography variant="mono">{formatMoney(lineTotal(line))}</Typography>
                       </TableCell>
                       <TableCell align="right">
                         <IconButton size="small" onClick={() => removeLine(line.variant.id)}>
@@ -476,8 +522,25 @@ export default function NewSale() {
         {cart.length > 0 && (
           <>
             <Divider sx={{ my: 1.5 }} />
-            <Stack direction="row" justifyContent="flex-end">
-              <Typography variant="subtitle1">Total: {formatMoney(total)}</Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+              <Stack direction="row" gap={1}>
+                <Button variant="outlined" size="small" onClick={handleApplyDiscount}>
+                  Apply discount
+                </Button>
+                {discountApplied && (
+                  <Button variant="text" size="small" color="error" onClick={handleRemoveDiscount}>
+                    Remove discount
+                  </Button>
+                )}
+              </Stack>
+              <Box sx={{ textAlign: 'right' }}>
+                {totalDiscount > 0 && (
+                  <Typography variant="body2" color="success.main">
+                    Discount applied: −{formatMoney(totalDiscount)}
+                  </Typography>
+                )}
+                <Typography variant="subtitle1">Total: {formatMoney(total)}</Typography>
+              </Box>
             </Stack>
           </>
         )}
@@ -497,8 +560,14 @@ export default function NewSale() {
               onChange={(e) => setAmountPaid(e.target.value)}
               fullWidth
             />
-            <Button variant="text" onClick={() => setAmountPaid(String(total / 100))} disabled={total === 0}>
-              Full amount
+            <Button
+              variant="outlined"
+              startIcon={<PaymentsIcon />}
+              onClick={() => setAmountPaid(String(total / 100))}
+              disabled={total === 0}
+              sx={{ flexShrink: 0 }}
+            >
+              Full amount received
             </Button>
           </Stack>
           <Typography variant="body2" color={balanceDue > 0 ? 'warning.main' : 'text.secondary'}>
