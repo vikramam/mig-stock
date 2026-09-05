@@ -17,16 +17,19 @@ import {
   FormControlLabel,
   Switch
 } from '@mui/material'
-import AddIcon from '@mui/icons-material/PersonAddAltSharp'
+import { useTheme } from '@mui/material/styles'
 import EditIcon from '@mui/icons-material/EditSharp'
-import DeleteIcon from '@mui/icons-material/DeleteSharp'
 import RestoreIcon from '@mui/icons-material/RestoreFromTrashSharp'
+import { AddIcon, DeleteIcon } from '../components/icons'
 import { supabase } from '../lib/supabase'
+import { listRowSx } from '../theme'
 import { Customer } from '../types'
 import { RowCardsSkeleton } from '../components/skeletons'
+import BackButton from '../components/common/BackButton'
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
 
 export default function ManageCustomers() {
+  const theme = useTheme()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -130,9 +133,10 @@ export default function ManageCustomers() {
   if (loading) {
     return (
       <Box>
-        <Typography variant="h4" sx={{ mb: 2 }}>
-          Manage customers
-        </Typography>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
+          <BackButton />
+          <Typography variant="h4">Manage customers</Typography>
+        </Stack>
         <RowCardsSkeleton rows={5} />
       </Box>
     )
@@ -140,9 +144,13 @@ export default function ManageCustomers() {
 
   if (loadError) {
     return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        Failed to load customers: {loadError}
-      </Alert>
+      <Box>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
+          <BackButton />
+          <Typography variant="h4">Manage customers</Typography>
+        </Stack>
+        <Alert severity="error">Failed to load customers: {loadError}</Alert>
+      </Box>
     )
   }
 
@@ -155,7 +163,10 @@ export default function ManageCustomers() {
         sx={{ mb: 2 }}
         gap={1.5}
       >
-        <Typography variant="h4">Manage customers</Typography>
+        <Stack direction="row" alignItems="center" gap={1}>
+          <BackButton />
+          <Typography variant="h4">Manage customers</Typography>
+        </Stack>
         <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
           <FormControlLabel
             control={<Switch checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />}
@@ -177,6 +188,7 @@ export default function ManageCustomers() {
         onChange={(e) => setSearch(e.target.value)}
         fullWidth
         size="small"
+        inputProps={{ 'aria-label': 'Search by name or phone' }}
         sx={{ mb: 2 }}
       />
 
@@ -190,7 +202,13 @@ export default function ManageCustomers() {
 
       <Stack spacing={1.5}>
         {visibleCustomers.map((customer) => (
-          <Paper key={customer.id} sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, opacity: customer.is_deleted ? 0.6 : 1 }}>
+          <Box
+            key={customer.id}
+            sx={{
+              ...listRowSx(theme),
+              opacity: customer.is_deleted ? 0.6 : 1
+            }}
+          >
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Stack direction="row" alignItems="center" gap={1}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
@@ -219,7 +237,7 @@ export default function ManageCustomers() {
                 </>
               )}
             </Stack>
-          </Paper>
+          </Box>
         ))}
       </Stack>
 

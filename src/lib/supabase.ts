@@ -47,10 +47,12 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
   const { data, error } = await supabase
     .from('variants')
     .select(
-      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types(type_name, product_id, default_discount, products(name))'
+      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types!inner(type_name, product_id, default_discount, active, products!inner(name, active))'
     )
     .eq('active', true)
     .eq('is_deleted', false)
+    .eq('product_types.active', true)
+    .eq('product_types.products.active', true)
 
   if (error) return { data: [], error: error.message }
 
@@ -72,6 +74,27 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
     .sort((a, b) => a.product_name.localeCompare(b.product_name) || a.type_name.localeCompare(b.type_name))
 
   return { data: flattened, error: null }
+}
+
+// Total qty sold per variant id across active (non-cancelled) sales, keyed by variant_id
+// — New Sale's "Top sellers" quick-add strip ranks its OWN currently-active variant list
+// against this map (rather than this function pre-ranking and slicing), so a top-seller
+// whose product/type has since been deactivated doesn't shrink the result below the
+// requested count — it's just never a candidate in the first place. Aggregated
+// client-side rather than via a SQL function, mirroring the same group-by-in-JS approach
+// api/chat.ts's get_top_selling_variants tool uses (this app's data volume is small
+// enough that this is fine).
+export async function fetchVariantSalesTotals(): Promise<{ data: Record<string, number>; error: string | null }> {
+  const { data, error } = await supabase.from('sale_items').select('variant_id, qty, sales!inner(status)').eq('sales.status', 'active')
+
+  if (error) return { data: {}, error: error.message }
+
+  const totals: Record<string, number> = {}
+  for (const item of (data ?? []) as { variant_id: string; qty: number }[]) {
+    totals[item.variant_id] = (totals[item.variant_id] ?? 0) + item.qty
+  }
+
+  return { data: totals, error: null }
 }
 
 const PRODUCT_IMAGE_BUCKET = 'product-images'

@@ -65,8 +65,8 @@ export default function ProductDialog({
           {uploadError && <Alert severity="error">{uploadError}</Alert>}
 
           <TextField
-            label="Product name"
             placeholder="e.g. Clamp"
+            inputProps={{ 'aria-label': 'Product name' }}
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus

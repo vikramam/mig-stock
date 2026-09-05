@@ -1,4 +1,4 @@
-import { PropsWithChildren } from 'react'
+import { PropsWithChildren, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
@@ -13,21 +13,27 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  IconButton
+  IconButton,
+  Divider
 } from '@mui/material'
-import DashboardIcon from '@mui/icons-material/GridViewSharp'
-import SellIcon from '@mui/icons-material/PointOfSaleSharp'
-import InventoryIcon from '@mui/icons-material/Inventory2Sharp'
-import BarChartIcon from '@mui/icons-material/BarChartSharp'
-import WarningIcon from '@mui/icons-material/ReportProblemSharp'
-import SettingsIcon from '@mui/icons-material/SettingsSharp'
-import LogoutIcon from '@mui/icons-material/LogoutSharp'
-import SmartToyIcon from '@mui/icons-material/SmartToySharp'
-import LightModeIcon from '@mui/icons-material/LightModeSharp'
-import DarkModeIcon from '@mui/icons-material/DarkModeSharp'
+import {
+  DashboardIcon,
+  SellIcon,
+  InventoryIcon,
+  BarChartIcon,
+  WarningIcon,
+  SettingsIcon,
+  LogoutIcon,
+  SmartToyIcon,
+  LightModeIcon,
+  DarkModeIcon,
+  MenuIcon,
+  PeopleIcon
+} from './icons'
 import { useTheme } from '@mui/material/styles'
 import { useAuth } from '../lib/auth'
 import { useThemeMode } from '../lib/themeMode'
+import BottomSheet from './common/BottomSheet'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
@@ -37,6 +43,11 @@ const NAV_ITEMS = [
   { label: 'Low stock', path: '/low-stock', icon: <WarningIcon /> }
 ]
 
+// New Sale renders its own sticky bottom bar (discount + total + Complete sale) in the
+// same fixed-bottom slot the tab bar would otherwise occupy — hide the tab bar there on
+// mobile so the two don't stack, and reserve extra bottom padding for the taller bar.
+const HIDE_BOTTOM_NAV_ROUTES = ['/sale/new']
+
 export default function Layout({ children }: PropsWithChildren) {
   const { signOut } = useAuth()
   const { mode, toggleMode } = useThemeMode()
@@ -44,10 +55,17 @@ export default function Layout({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
   const navigate = useNavigate()
   const location = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
   const currentIndex = Math.max(
     0,
     NAV_ITEMS.findIndex((i) => i.path === location.pathname)
   )
+  const hideBottomNav = HIDE_BOTTOM_NAV_ROUTES.includes(location.pathname)
+
+  function goTo(path: string) {
+    navigate(path)
+    setMenuOpen(false)
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -60,7 +78,7 @@ export default function Layout({ children }: PropsWithChildren) {
             sx={{ width: 32, height: 32, borderRadius: '8px', objectFit: 'contain', flexShrink: 0 }}
           />
           <Typography variant="h6" sx={{ flexGrow: 1, letterSpacing: 0.2 }}>
-            Clamp Sales Tracker
+            Clamp Sales
           </Typography>
           <IconButton
             color="inherit"
@@ -69,15 +87,23 @@ export default function Layout({ children }: PropsWithChildren) {
           >
             {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
           </IconButton>
-          <IconButton color="inherit" onClick={() => navigate('/chat')} aria-label="Ask MIG">
-            <SmartToyIcon />
-          </IconButton>
-          <IconButton color="inherit" onClick={() => navigate('/settings')} aria-label="Settings">
-            <SettingsIcon />
-          </IconButton>
-          <IconButton color="inherit" onClick={() => void signOut()} aria-label="Sign out">
-            <LogoutIcon />
-          </IconButton>
+          {isDesktop ? (
+            <>
+              <IconButton color="inherit" onClick={() => navigate('/chat')} aria-label="Ask MIG">
+                <SmartToyIcon />
+              </IconButton>
+              <IconButton color="inherit" onClick={() => navigate('/settings')} aria-label="Settings">
+                <SettingsIcon />
+              </IconButton>
+              <IconButton color="inherit" onClick={() => void signOut()} aria-label="Sign out">
+                <LogoutIcon />
+              </IconButton>
+            </>
+          ) : (
+            <IconButton color="inherit" onClick={() => setMenuOpen(true)} aria-label="Menu">
+              <MenuIcon />
+            </IconButton>
+          )}
         </Toolbar>
       </AppBar>
 
@@ -119,7 +145,10 @@ export default function Layout({ children }: PropsWithChildren) {
           sx={{
             flex: 1,
             p: { xs: 2, md: 4 },
-            pb: { xs: 'calc(64px + env(safe-area-inset-bottom))', md: 4 },
+            pb: {
+              xs: hideBottomNav ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(64px + env(safe-area-inset-bottom))',
+              md: 4
+            },
             maxWidth: 1160,
             mx: 'auto',
             width: '100%'
@@ -129,7 +158,7 @@ export default function Layout({ children }: PropsWithChildren) {
         </Box>
       </Box>
 
-      {!isDesktop && (
+      {!isDesktop && !hideBottomNav && (
         <BottomNavigation
           value={currentIndex}
           onChange={(_, newValue) => navigate(NAV_ITEMS[newValue].path)}
@@ -149,6 +178,42 @@ export default function Layout({ children }: PropsWithChildren) {
           ))}
         </BottomNavigation>
       )}
+
+      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu">
+        <List sx={{ pt: 0 }}>
+          <ListItemButton onClick={() => goTo('/customers')} sx={{ borderRadius: 2 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <PeopleIcon />
+            </ListItemIcon>
+            <ListItemText primary="Customers" />
+          </ListItemButton>
+          <ListItemButton onClick={() => goTo('/settings')} sx={{ borderRadius: 2 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <SettingsIcon />
+            </ListItemIcon>
+            <ListItemText primary="Settings" />
+          </ListItemButton>
+          <ListItemButton onClick={() => goTo('/chat')} sx={{ borderRadius: 2 }}>
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <SmartToyIcon />
+            </ListItemIcon>
+            <ListItemText primary="Ask MIG" />
+          </ListItemButton>
+          <Divider sx={{ my: 1 }} />
+          <ListItemButton
+            onClick={() => {
+              setMenuOpen(false)
+              void signOut()
+            }}
+            sx={{ borderRadius: 2 }}
+          >
+            <ListItemIcon sx={{ minWidth: 40, color: 'error.main' }}>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText primary="Sign out" sx={{ color: 'error.main' }} />
+          </ListItemButton>
+        </List>
+      </BottomSheet>
     </Box>
   )
 }

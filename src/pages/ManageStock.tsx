@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
   Typography,
   Paper,
   TextField,
-  MenuItem,
   Button,
   Stack,
   Alert,
@@ -19,8 +18,10 @@ import {
   Divider
 } from '@mui/material'
 import { supabase, formatMoney, fetchActiveVariants } from '../lib/supabase'
-import { VariantWithContext, formatVariantLabel, formatSize } from '../types'
+import { VariantWithContext, formatVariantLabel } from '../types'
 import { FormSkeleton } from '../components/skeletons'
+import BackButton from '../components/common/BackButton'
+import ProductTypeSizePicker from '../components/catalog/ProductTypeSizePicker'
 
 interface LastMovement {
   change_qty: number
@@ -39,9 +40,7 @@ export default function ManageStock() {
 
   const [mode, setMode] = useState<'add' | 'update'>('add')
 
-  const [pickProductId, setPickProductId] = useState('')
-  const [pickTypeId, setPickTypeId] = useState('')
-  const [pickVariantId, setPickVariantId] = useState('')
+  const [selected, setSelected] = useState<VariantWithContext | null>(null)
   const [qty, setQty] = useState('')
   const [newStock, setNewStock] = useState('')
   const [note, setNote] = useState('')
@@ -59,16 +58,6 @@ export default function ManageStock() {
     void loadVariants()
   }, [])
 
-  useEffect(() => {
-    if (!presetVariantId) return
-    const match = variants.find((v) => v.id === presetVariantId)
-    if (match) {
-      setPickProductId(match.product_id)
-      setPickTypeId(match.type_id)
-      setPickVariantId(match.id)
-    }
-  }, [variants, presetVariantId])
-
   async function loadVariants() {
     setLoading(true)
     setLoadError(null)
@@ -77,32 +66,6 @@ export default function ManageStock() {
     else setVariants(data)
     setLoading(false)
   }
-
-  const productOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    variants.forEach((v) => {
-      if (!map.has(v.product_id)) map.set(v.product_id, v.product_name)
-    })
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [variants])
-
-  const typeOptions = useMemo(() => {
-    if (!pickProductId) return []
-    const map = new Map<string, { id: string; label: string }>()
-    variants
-      .filter((v) => v.product_id === pickProductId)
-      .forEach((v) => {
-        if (!map.has(v.type_id)) map.set(v.type_id, { id: v.type_id, label: v.type_name })
-      })
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [variants, pickProductId])
-
-  const sizeOptions = useMemo(() => {
-    if (!pickTypeId) return []
-    return variants.filter((v) => v.type_id === pickTypeId).sort((a, b) => a.size - b.size)
-  }, [variants, pickTypeId])
-
-  const selected = sizeOptions.find((v) => v.id === pickVariantId) ?? null
 
   useEffect(() => {
     setSuccess(null)
@@ -121,17 +84,6 @@ export default function ManageStock() {
       .limit(1)
       .maybeSingle()
     setLastMovement((data as LastMovement) ?? null)
-  }
-
-  function handleProductPick(id: string) {
-    setPickProductId(id)
-    setPickTypeId('')
-    setPickVariantId('')
-  }
-
-  function handleTypePick(id: string) {
-    setPickTypeId(id)
-    setPickVariantId('')
   }
 
   const qtyNum = parseInt(qty, 10)
@@ -211,9 +163,10 @@ export default function ManageStock() {
   if (loading) {
     return (
       <Box sx={{ maxWidth: 480, mx: 'auto' }}>
-        <Typography variant="h4" sx={{ mb: 3 }}>
-          Manage stock
-        </Typography>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 3 }}>
+          <BackButton />
+          <Typography variant="h4">Manage stock</Typography>
+        </Stack>
         <FormSkeleton fields={4} />
       </Box>
     )
@@ -221,18 +174,23 @@ export default function ManageStock() {
 
   if (loadError) {
     return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        Failed to load variants: {loadError}
-      </Alert>
+      <Box sx={{ maxWidth: 480, mx: 'auto' }}>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 3 }}>
+          <BackButton />
+          <Typography variant="h4">Manage stock</Typography>
+        </Stack>
+        <Alert severity="error">Failed to load variants: {loadError}</Alert>
+      </Box>
     )
   }
 
   return (
     <Box sx={{ maxWidth: 480, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ mb: 0.5 }}>
-        Manage stock
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.5 }}>
+        <BackButton />
+        <Typography variant="h4">Manage stock</Typography>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: '52px' }}>
         Record a new purchase/restock, or correct a variant's stock count.{' '}
         <MuiLink component="button" onClick={() => navigate('/catalog')}>
           Manage catalog
@@ -241,7 +199,14 @@ export default function ManageStock() {
 
       <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider' }}>
         <Stack spacing={2}>
-          <Tabs value={mode} onChange={(_, v) => setMode(v)} variant="fullWidth">
+          <Tabs
+            value={mode}
+            onChange={(_, v) => {
+              setMode(v)
+              setSelected(null)
+            }}
+            variant="fullWidth"
+          >
             <Tab label="Add new stock" value="add" />
             <Tab label="Update existing stock" value="update" />
           </Tabs>
@@ -257,43 +222,13 @@ export default function ManageStock() {
             </Alert>
           )}
 
-          <TextField select label="Product" value={pickProductId} onChange={(e) => handleProductPick(e.target.value)} fullWidth>
-            {productOptions.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {p.name}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            label="Type"
-            value={pickTypeId}
-            onChange={(e) => handleTypePick(e.target.value)}
-            disabled={!pickProductId}
-            fullWidth
-          >
-            {typeOptions.map((t) => (
-              <MenuItem key={t.id} value={t.id}>
-                {t.label}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            label="Size"
-            value={pickVariantId}
-            onChange={(e) => setPickVariantId(e.target.value)}
-            disabled={!pickTypeId}
-            fullWidth
-          >
-            {sizeOptions.map((v) => (
-              <MenuItem key={v.id} value={v.id}>
-                {formatSize(v.size)} — {formatMoney(v.unit_price)} · {v.current_stock} in stock
-              </MenuItem>
-            ))}
-          </TextField>
+          <ProductTypeSizePicker
+            variants={variants}
+            onSelectionChange={setSelected}
+            presetVariantId={presetVariantId}
+            resetToken={mode}
+            layout="dropdown"
+          />
 
           {selected && (
             <Typography variant="body2" color="text.secondary">
@@ -319,18 +254,18 @@ export default function ManageStock() {
 
           {mode === 'add' ? (
             <TextField
-              label="Quantity to add"
+              placeholder="Quantity to add"
               type="number"
-              inputProps={{ step: '1', min: 1 }}
+              inputProps={{ 'aria-label': 'Quantity to add', step: '1', min: 1 }}
               value={qty}
               onChange={(e) => setQty(e.target.value)}
               fullWidth
             />
           ) : (
             <TextField
-              label="New stock quantity"
+              placeholder="New stock quantity"
               type="number"
-              inputProps={{ step: '1' }}
+              inputProps={{ 'aria-label': 'New stock quantity', step: '1' }}
               value={newStock}
               onChange={(e) => setNewStock(e.target.value)}
               helperText="Sets the stock count directly — use this to correct it after a physical recount."
@@ -339,7 +274,8 @@ export default function ManageStock() {
           )}
 
           <TextField
-            label="Note (optional)"
+            placeholder="Note (optional)"
+            inputProps={{ 'aria-label': 'Note (optional)' }}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             fullWidth
@@ -348,8 +284,8 @@ export default function ManageStock() {
           />
 
           <TextField
-            label="Added by (optional)"
             placeholder="e.g. owner, father"
+            inputProps={{ 'aria-label': 'Added by (optional)' }}
             value={addedBy}
             onChange={(e) => setAddedBy(e.target.value)}
             fullWidth

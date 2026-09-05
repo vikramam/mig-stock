@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Box, Paper, Typography, TextField, IconButton, Stack, Chip, Skeleton } from '@mui/material'
-import SendIcon from '@mui/icons-material/SendSharp'
-import SmartToyIcon from '@mui/icons-material/SmartToySharp'
+import { useTheme } from '@mui/material/styles'
+import { SendIcon, SmartToyIcon } from '../components/icons'
+import BackButton from '../components/common/BackButton'
 import { useAuth } from '../lib/auth'
+import { chipUnselectedBg } from '../theme'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -13,6 +15,8 @@ interface ChatMessage {
 const SUGGESTIONS = ['How much did I sell this week?', 'Who owes me money right now?', 'What are my low stock items?', 'Which size sells the most this month?']
 
 export default function Chatbot() {
+  const theme = useTheme()
+  const unselectedBg = chipUnselectedBg(theme.palette.mode)
   const { session } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -56,10 +60,11 @@ export default function Chatbot() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', maxHeight: 700 }}>
-      <Typography variant="h4" sx={{ mb: 0.5 }}>
-        Ask MIG
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.5 }}>
+        <BackButton />
+        <Typography variant="h4">Ask MIG</Typography>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, ml: '52px' }}>
         Ask plain-language questions about your sales, stock, and customers.
       </Typography>
 
@@ -69,8 +74,7 @@ export default function Chatbot() {
           overflowY: 'auto',
           p: 2,
           mb: 2,
-          border: '1px solid',
-          borderColor: 'divider',
+          bgcolor: 'background.default',
           display: 'flex',
           flexDirection: 'column',
           gap: 1.5
@@ -84,7 +88,15 @@ export default function Chatbot() {
             </Typography>
             <Stack direction="row" flexWrap="wrap" justifyContent="center" gap={1}>
               {SUGGESTIONS.map((s) => (
-                <Chip key={s} label={s} onClick={() => void sendMessage(s)} sx={{ cursor: 'pointer' }} />
+                <Chip
+                  key={s}
+                  label={s}
+                  clickable
+                  onClick={() => void sendMessage(s)}
+                  variant="outlined"
+                  color="primary"
+                  sx={{ bgcolor: unselectedBg }}
+                />
               ))}
             </Stack>
           </Box>
@@ -97,9 +109,14 @@ export default function Chatbot() {
                 px: 1.75,
                 py: 1,
                 maxWidth: '80%',
+                borderRadius: 3,
                 border: '1px solid',
-                borderColor: m.isError ? 'error.main' : 'divider',
-                bgcolor: m.role === 'user' ? 'primary.main' : m.isError ? 'error.light' : 'background.default',
+                borderColor: m.isError ? 'error.main' : m.role === 'user' ? 'transparent' : 'divider',
+                backgroundImage:
+                  m.role === 'user' && !m.isError
+                    ? `linear-gradient(135deg, ${theme.palette.primary.light} 0%, ${theme.palette.primary.main} 60%, ${theme.palette.primary.dark} 100%)`
+                    : 'none',
+                bgcolor: m.role === 'user' ? undefined : m.isError ? 'error.light' : 'background.paper',
                 color: m.role === 'user' ? 'primary.contrastText' : 'text.primary'
               }}
             >
@@ -112,7 +129,7 @@ export default function Chatbot() {
 
         {sending && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <Paper sx={{ px: 1.75, py: 1.25, bgcolor: 'background.default' }}>
+            <Paper sx={{ px: 1.75, py: 1.25, borderRadius: 3, bgcolor: 'background.paper' }}>
               <Stack spacing={0.5} sx={{ width: 120 }}>
                 <Skeleton variant="text" width="90%" height={14} />
                 <Skeleton variant="text" width="60%" height={14} />
@@ -124,10 +141,23 @@ export default function Chatbot() {
         <div ref={bottomRef} />
       </Paper>
 
-      <Stack direction="row" spacing={1}>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{
+          p: 0.75,
+          alignItems: 'center',
+          borderRadius: 4,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper'
+        }}
+      >
         <TextField
           fullWidth
+          variant="standard"
           placeholder="Ask about sales, stock, or customers…"
+          inputProps={{ 'aria-label': 'Ask about sales, stock, or customers' }}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -137,6 +167,8 @@ export default function Chatbot() {
             }
           }}
           disabled={sending}
+          InputProps={{ disableUnderline: true }}
+          sx={{ px: 1 }}
         />
         <IconButton color="primary" onClick={() => void sendMessage(input)} disabled={sending || !input.trim()} aria-label="Send">
           <SendIcon />

@@ -43,17 +43,17 @@ export default function TypeDialog({
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
-            label="Type name"
             placeholder="e.g. Cruiser Clamp"
+            inputProps={{ 'aria-label': 'Type name' }}
             value={typeName}
             onChange={(e) => setTypeName(e.target.value)}
             autoFocus
             fullWidth
           />
           <TextField
-            label="Default discount (Rs., per unit)"
+            placeholder="Default discount (Rs., per unit)"
             type="number"
-            inputProps={{ step: '0.01', min: 0 }}
+            inputProps={{ 'aria-label': 'Default discount (Rs., per unit)', step: '0.01', min: 0 }}
             value={discount}
             onChange={(e) => setDiscount(e.target.value)}
             helperText='Applied per unit when "Apply discount" is clicked on New Sale. Leave blank for no discount.'

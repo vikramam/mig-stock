@@ -25,6 +25,53 @@ declare module '@mui/material/Typography' {
 // Tokens shared by both modes.
 const microTransition = 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease'
 const glassBlur = 'blur(20px) saturate(180%)'
+// Shared by the MuiButton contained-primary variant AND the MuiChip filled-primary
+// variant below — the "selected chip" look in the native-mobile picker/filter patterns
+// (product/type chips, preset chips) is deliberately the exact same gradient as a
+// primary CTA button, not a bespoke chip color.
+const amberGradient = 'linear-gradient(135deg, #E0A461 0%, #C97A2B 60%, #9C5D1E 100%)'
+const amberGradientHover = 'linear-gradient(135deg, #E8B276 0%, #D3872F 60%, #A8672A 100%)'
+
+// Rest-state background for an *unselected* pickable chip (product/type chips, filter
+// chips) — plain `variant="outlined"` Chips default to a transparent background, which
+// reads as invisible in the chip-row pickers the native-mobile redesign introduces.
+// Deliberately a standalone helper rather than a `ModeTokens` field: it's consumed
+// directly by chip-picker components via `useTheme()`, not by a `MuiComponent` override
+// (an app-wide outlined-Chip background would also repaint static status tags like
+// "PAID"/"PENDING", which should stay transparent).
+export function chipUnselectedBg(mode: PaletteMode): string {
+  return mode === 'light' ? 'rgba(15,23,42,0.04)' : 'rgba(255,255,255,0.04)'
+}
+
+// Shared flat list-row treatment for list-with-chevron drill-down screens (Catalog's
+// product/type/variant levels, low-stock rows, etc.) — one definition instead of each
+// screen hand-rolling its own row `sx`.
+export function listRowSx(theme: ReturnType<typeof createTheme>) {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 1.5,
+    p: 1.5,
+    borderRadius: 2,
+    border: `1px solid ${theme.palette.divider}`,
+    bgcolor: 'background.paper',
+    transition: microTransition,
+    '&:hover': { borderColor: theme.palette.primary.main },
+    '&:active': { transform: 'scale(0.99)' }
+  } as const
+}
+
+// Fixed display threshold for the amber/red stock-color cues introduced by the
+// native-mobile picker/catalog rows (grey ≥10, amber <10, red at 0) — intentionally NOT
+// wired to `settings.low_stock_threshold` (the app's real, configurable low-stock rule
+// used by the Low Stock page); this is a lighter-weight visual cue on a picker cell, not
+// a business rule, so callers aren't required to fetch settings just to render a chip.
+export function stockCellColor(stock: number, lowStockThreshold = 10): 'text.secondary' | 'warning.main' | 'error.main' {
+  if (stock <= 0) return 'error.main'
+  if (stock < lowStockThreshold) return 'warning.main'
+  return 'text.secondary'
+}
 
 interface ModeTokens {
   background: { default: string; paper: string }
@@ -166,10 +213,10 @@ export function getTheme(mode: PaletteMode) {
             // this covers save/submit/primary actions app-wide without touching each page.
             props: { variant: 'contained', color: 'primary' },
             style: {
-              backgroundImage: 'linear-gradient(135deg, #E0A461 0%, #C97A2B 60%, #9C5D1E 100%)',
+              backgroundImage: amberGradient,
               boxShadow: `inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 16px rgba(201,122,43,${t.buttonGlowAlpha}), 0 1px 2px rgba(0,0,0,0.3)`,
               '&:hover': {
-                backgroundImage: 'linear-gradient(135deg, #E8B276 0%, #D3872F 60%, #A8672A 100%)',
+                backgroundImage: amberGradientHover,
                 boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), 0 6px 22px rgba(201,122,43,${Math.min(t.buttonGlowAlpha + 0.15, 0.7)}), 0 2px 4px rgba(0,0,0,0.35)`,
                 transform: 'translateY(-1px) scale(1.02)'
               },
@@ -243,6 +290,31 @@ export function getTheme(mode: PaletteMode) {
           })
         }
       },
+      MuiDrawer: {
+        styleOverrides: {
+          // Scoped to anchor="bottom" only (the native "sheet" pattern — mobile menu,
+          // receipt/share sheet) — side Drawers (none currently used, but not assumed
+          // away) get plain MUI defaults. Mirrors MuiDialog's own glass/solid-below-`sm`
+          // split immediately below for the same reason: a sheet that opens/closes
+          // often is a repeated GPU cost, not a one-off.
+          paper: ({ ownerState, theme }: { ownerState: { anchor?: string }; theme: ReturnType<typeof createTheme> }) =>
+            ownerState.anchor === 'bottom'
+              ? {
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  backgroundColor: t.dialogBg,
+                  backdropFilter: glassBlur,
+                  WebkitBackdropFilter: glassBlur,
+                  borderTop: `1px solid ${t.borderStrong}`,
+                  [theme.breakpoints.down('sm')]: {
+                    backdropFilter: 'none',
+                    WebkitBackdropFilter: 'none',
+                    backgroundColor: t.mobileSolidBg
+                  }
+                }
+              : {}
+        }
+      },
       MuiChip: {
         // MUI's default Chip is a fully rounded pill regardless of theme.shape —
         // square it off (slightly) into a small tag instead.
@@ -255,6 +327,39 @@ export function getTheme(mode: PaletteMode) {
             // so static status tags like "PAID"/"PENDING" don't get a misleading hover cue.
             '&.MuiChip-clickable:hover': { transform: 'scale(1.05)' },
             '&.MuiChip-clickable:active': { transform: 'scale(0.96)' }
+          }
+        },
+        variants: [
+          {
+            // The "selected" look for chip-row pickers (product/type chips in the New
+            // Sale / Manage Stock item picker, preset chips in Reports/filters) — same
+            // gradient+glow as a primary CTA button, applied via
+            // `<Chip variant={selected ? 'filled' : 'outlined'} color="primary" />` so
+            // callers don't hand-roll a bespoke sx per screen.
+            props: { variant: 'filled', color: 'primary' },
+            style: {
+              backgroundImage: amberGradient,
+              color: '#1B1710',
+              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 8px rgba(201,122,43,${t.buttonGlowAlpha})`,
+              '&:hover': { backgroundImage: amberGradientHover }
+            }
+          }
+        ]
+      },
+      // Native-mobile "flat pill" field, app-wide: a filled surface instead of an
+      // outline-only box, softer than MUI's default notched border. This only handles
+      // the visual chrome — call sites still decide label vs. placeholder (most were
+      // moved to placeholder + aria-label to match the prototype's plain-input look;
+      // `select` fields keep a visible `label`, since a placeholder doesn't mean the
+      // same thing on a dropdown).
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            borderRadius: 16,
+            backgroundColor: chipUnselectedBg(mode)
+          },
+          notchedOutline: {
+            borderColor: t.border
           }
         }
       },

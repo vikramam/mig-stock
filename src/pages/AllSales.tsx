@@ -4,37 +4,62 @@ import {
   Box,
   Typography,
   Paper,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   Chip,
   Stack,
   TextField,
-  MenuItem,
   FormControlLabel,
   Switch,
   Alert,
   CircularProgress,
   IconButton
 } from '@mui/material'
-import FileDownloadSharp from '@mui/icons-material/FileDownloadSharp'
+import { useTheme } from '@mui/material/styles'
+import { FileDownloadIcon as FileDownloadSharp } from '../components/icons'
 import { supabase, formatMoney } from '../lib/supabase'
 import { Sale, PaymentStatus } from '../types'
 import SaleDetailDialog from '../components/sale/SaleDetailDialog'
 import Receipt, { ReceiptData } from '../components/sale/Receipt'
 import { fetchReceiptData } from '../lib/receiptData'
 import { downloadBlob, receiptToPngBlob } from '../lib/receipt'
-import { RowCardsSkeleton, TableSkeleton } from '../components/skeletons'
+import { RowCardsSkeleton } from '../components/skeletons'
+import BackButton from '../components/common/BackButton'
+import { chipUnselectedBg, listRowSx } from '../theme'
 
 type SaleRow = Sale & { customers: { name: string } | null }
 
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+  const date = new Date(iso)
+  const time = date.toLocaleTimeString('en-IN', { timeStyle: 'short' })
+
+  const now = new Date()
+  if (isSameDay(date, now)) return `Today ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (isSameDay(date, yesterday)) return `Yesterday ${time}`
+
+  return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+const PAYMENT_FILTERS: Array<{ value: PaymentStatus | 'all'; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'pending', label: 'Pending' }
+]
+
+function saleStatusBadge(sale: SaleRow): { label: string; color: 'success' | 'warning' | 'error' } {
+  if (sale.status === 'cancelled') return { label: 'CANCELLED', color: 'error' }
+  if (sale.payment_status === 'paid') return { label: 'PAID', color: 'success' }
+  return { label: 'PENDING', color: 'warning' }
 }
 
 export default function AllSales() {
+  const theme = useTheme()
+  const unselectedBg = chipUnselectedBg(theme.palette.mode)
   const [searchParams] = useSearchParams()
   const initialPaymentFilter = searchParams.get('filter') === 'pending' ? 'pending' : 'all'
 
@@ -126,57 +151,65 @@ export default function AllSales() {
   if (loading) {
     return (
       <Box>
-        <Typography variant="h4" sx={{ mb: 2 }}>
-          All sales
-        </Typography>
-        <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
-          <RowCardsSkeleton rows={5} />
-        </Box>
-        <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-          <TableSkeleton rows={6} columns={7} />
-        </Box>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
+          <BackButton />
+          <Typography variant="h4">All sales</Typography>
+        </Stack>
+        <RowCardsSkeleton rows={6} />
       </Box>
     )
   }
 
   if (loadError) {
     return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        Failed to load sales: {loadError}
-      </Alert>
+      <Box>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
+          <BackButton />
+          <Typography variant="h4">All sales</Typography>
+        </Stack>
+        <Alert severity="error">Failed to load sales: {loadError}</Alert>
+      </Box>
     )
   }
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ mb: 2 }}>
-        All sales
-      </Typography>
+      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 2 }}>
+        <BackButton />
+        <Typography variant="h4">All sales</Typography>
+      </Stack>
 
-      <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
+      <Stack spacing={1.5} sx={{ mb: 2 }}>
         <TextField
-          label="Search receipt or customer"
+          placeholder="Search receipt or customer"
           size="small"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          sx={{ minWidth: 240 }}
+          inputProps={{ 'aria-label': 'Search receipt or customer' }}
+          sx={{ maxWidth: 320 }}
         />
-        <TextField
-          select
-          label="Payment"
-          size="small"
-          value={paymentFilter}
-          onChange={(e) => setPaymentFilter(e.target.value as PaymentStatus | 'all')}
-          sx={{ minWidth: 140 }}
-        >
-          <MenuItem value="all">All</MenuItem>
-          <MenuItem value="paid">Paid</MenuItem>
-          <MenuItem value="pending">Pending</MenuItem>
-        </TextField>
-        <FormControlLabel
-          control={<Switch checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} />}
-          label="Show cancelled"
-        />
+        <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" justifyContent="space-between">
+          <Stack direction="row" spacing={1}>
+            {PAYMENT_FILTERS.map((f) => {
+              const isSelected = f.value === paymentFilter
+              return (
+                <Chip
+                  key={f.value}
+                  label={f.label}
+                  clickable
+                  onClick={() => setPaymentFilter(f.value)}
+                  variant={isSelected ? 'filled' : 'outlined'}
+                  color="primary"
+                  sx={isSelected ? undefined : { bgcolor: unselectedBg }}
+                />
+              )
+            })}
+          </Stack>
+          <FormControlLabel
+            control={<Switch checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} />}
+            label="Show cancelled"
+          />
+        </Stack>
       </Stack>
 
       {downloadError && (
@@ -190,148 +223,61 @@ export default function AllSales() {
           <Typography color="text.secondary">No sales match these filters.</Typography>
         </Paper>
       ) : (
-        <>
-          {/* Mobile: stacked cards — an 8-column table doesn't fit a phone width */}
-          <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' } }}>
-            {visibleSales.map((sale) => (
-              <Paper
+        <Stack spacing={1}>
+          {visibleSales.map((sale) => {
+            const badge = saleStatusBadge(sale)
+            return (
+              <Box
                 key={sale.id}
-                variant="outlined"
                 onClick={() => setSelectedSaleId(sale.id)}
                 sx={{
-                  p: 1.5,
+                  ...listRowSx(theme),
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
+                  gap: 0.5,
                   cursor: 'pointer',
-                  opacity: sale.status === 'cancelled' ? 0.6 : 1,
-                  transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
-                  '&:hover': { transform: 'scale(1.02)', borderColor: 'rgba(201,122,43,0.4)' },
-                  '&:active': { transform: 'scale(0.98)' }
+                  opacity: sale.status === 'cancelled' ? 0.6 : 1
                 }}
               >
+                <Stack direction="row" justifyContent="space-between" alignItems="baseline" gap={1}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 0, flex: 1 }} noWrap>
+                    {sale.customers?.name ?? 'Walk-in'}
+                  </Typography>
+                  <Typography variant="mono" sx={{ flexShrink: 0 }}>
+                    {formatMoney(sale.total)}
+                  </Typography>
+                </Stack>
+
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }} noWrap>
                       {sale.receipt_no}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }} noWrap>
                       {formatDateTime(sale.created_at)}
                     </Typography>
                   </Box>
-                  <IconButton
-                    size="small"
-                    disabled={downloadingId === sale.id}
-                    onClick={(e) => void handleDownloadRow(e, sale.id)}
-                    aria-label="Download receipt"
-                    sx={{ flexShrink: 0 }}
-                  >
-                    {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadSharp fontSize="small" />}
-                  </IconButton>
-                </Stack>
-
-                <Typography variant="body2" sx={{ mt: 0.5 }}>
-                  {sale.customers?.name ?? 'Walk-in'}
-                </Typography>
-
-                <Stack direction="row" gap={0.75} sx={{ mt: 1 }}>
-                  <Chip
-                    size="small"
-                    label={sale.status === 'active' ? 'Active' : 'Cancelled'}
-                    color={sale.status === 'active' ? 'default' : 'error'}
-                  />
-                  <Chip
-                    size="small"
-                    label={sale.payment_status === 'paid' ? 'Paid' : 'Pending'}
-                    color={sale.payment_status === 'paid' ? 'success' : 'warning'}
-                  />
-                </Stack>
-
-                <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Total
-                  </Typography>
-                  <Typography variant="mono">{formatMoney(sale.total)}</Typography>
-                </Stack>
-                {sale.balance_due > 0 && (
-                  <Stack direction="row" justifyContent="space-between">
-                    <Typography variant="body2" color="text.secondary">
-                      Balance due
-                    </Typography>
-                    <Typography variant="mono" color="warning.main">
-                      {formatMoney(sale.balance_due)}
-                    </Typography>
-                  </Stack>
-                )}
-              </Paper>
-            ))}
-          </Stack>
-
-          {/* Desktop/tablet: table */}
-          <Paper sx={{ border: '1px solid', borderColor: 'divider', overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Receipt</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Customer</TableCell>
-                  <TableCell align="right">Total</TableCell>
-                  <TableCell align="right">Balance due</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Payment</TableCell>
-                  <TableCell align="right"></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {visibleSales.map((sale) => (
-                  <TableRow
-                    key={sale.id}
-                    hover
-                    onClick={() => setSelectedSaleId(sale.id)}
-                    sx={{
-                      cursor: 'pointer',
-                      opacity: sale.status === 'cancelled' ? 0.6 : 1,
-                      transition: 'background-color 0.2s ease'
-                    }}
-                  >
-                    <TableCell>{sale.receipt_no}</TableCell>
-                    <TableCell>{formatDateTime(sale.created_at)}</TableCell>
-                    <TableCell>{sale.customers?.name ?? 'Walk-in'}</TableCell>
-                    <TableCell align="right">
-                      <Typography variant="mono">{formatMoney(sale.total)}</Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="mono" color={sale.balance_due > 0 ? 'warning.main' : 'text.primary'}>
-                        {formatMoney(sale.balance_due)}
+                  <Stack direction="row" alignItems="center" gap={1} sx={{ flexShrink: 0 }}>
+                    {sale.balance_due > 0 && (
+                      <Typography variant="mono" color="warning.main" sx={{ fontSize: '0.7rem' }} noWrap>
+                        Bal {formatMoney(sale.balance_due)}
                       </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={sale.status === 'active' ? 'Active' : 'Cancelled'}
-                        color={sale.status === 'active' ? 'default' : 'error'}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={sale.payment_status === 'paid' ? 'Paid' : 'Pending'}
-                        color={sale.payment_status === 'paid' ? 'success' : 'warning'}
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        size="small"
-                        disabled={downloadingId === sale.id}
-                        onClick={(e) => void handleDownloadRow(e, sale.id)}
-                        aria-label="Download receipt"
-                      >
-                        {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadSharp fontSize="small" />}
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        </>
+                    )}
+                    <Chip size="small" label={badge.label} color={badge.color} sx={{ fontSize: '0.65rem' }} />
+                    <IconButton
+                      size="small"
+                      disabled={downloadingId === sale.id}
+                      onClick={(e) => void handleDownloadRow(e, sale.id)}
+                      aria-label="Download receipt"
+                    >
+                      {downloadingId === sale.id ? <CircularProgress size={16} /> : <FileDownloadSharp fontSize="small" />}
+                    </IconButton>
+                  </Stack>
+                </Stack>
+              </Box>
+            )
+          })}
+        </Stack>
       )}
 
       {pendingDownload && (

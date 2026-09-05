@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
   Paper,
-  Autocomplete,
   TextField,
-  MenuItem,
   Button,
   Stack,
   Alert,
@@ -16,17 +14,21 @@ import {
   TableCell,
   TableBody,
   IconButton,
-  Divider
+  Divider,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListItemIcon
 } from '@mui/material'
-import DeleteIcon from '@mui/icons-material/DeleteOutlineSharp'
-import PersonAddIcon from '@mui/icons-material/PersonAddAltSharp'
-import PaymentsIcon from '@mui/icons-material/PaymentsSharp'
-import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants } from '../lib/supabase'
+import { DeleteIcon, AddIcon as PersonAddIcon, ChevronRightIcon, PersonIcon, CheckIcon, BackIcon } from '../components/icons'
+import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants, fetchVariantSalesTotals } from '../lib/supabase'
 import { Customer, VariantWithContext, formatVariantLabel, formatSize } from '../types'
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
 import ReceiptDialog from '../components/sale/ReceiptDialog'
 import QtyStepper from '../components/QtyStepper'
 import { FormSkeleton } from '../components/skeletons'
+import BottomSheet from '../components/common/BottomSheet'
+import ProductTypeSizePicker from '../components/catalog/ProductTypeSizePicker'
 
 interface CartLine {
   variant: VariantWithContext
@@ -39,25 +41,39 @@ interface EditPrefillState {
   prefillItems?: { variant_id: string; qty: number }[]
 }
 
+// "Full amount received" reads as a flat secondary action, not a bordered/outlined
+// button — matches the prototype's card-style buttons. (The fields themselves no longer
+// need a local override now that the flat-pill look is a theme-wide MuiOutlinedInput
+// default — see src/theme.ts.)
+const flatButtonSx = {
+  bgcolor: 'action.hover',
+  color: 'text.primary',
+  fontWeight: 700,
+  borderRadius: 1,
+  py: 1.5,
+  boxShadow: 'none',
+  '&:hover': { bgcolor: 'action.selected', boxShadow: 'none' }
+}
+
 export default function NewSale() {
   const location = useLocation()
+  const navigate = useNavigate()
   const appliedPrefillRef = useRef(false)
   const [prefillNotice, setPrefillNotice] = useState(false)
   const [prefillMissingCount, setPrefillMissingCount] = useState(0)
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [variants, setVariants] = useState<VariantWithContext[]>([])
+  const [topSellers, setTopSellers] = useState<VariantWithContext[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [customerSheetOpen, setCustomerSheetOpen] = useState(false)
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
   const [customerSaving, setCustomerSaving] = useState(false)
   const [customerError, setCustomerError] = useState<string | null>(null)
 
-  const [pickProductId, setPickProductId] = useState('')
-  const [pickTypeId, setPickTypeId] = useState('')
-  const [pickVariantId, setPickVariantId] = useState('')
   const [cart, setCart] = useState<CartLine[]>([])
   const [discountApplied, setDiscountApplied] = useState(false)
 
@@ -77,11 +93,15 @@ export default function NewSale() {
   async function loadAll() {
     setLoading(true)
     setLoadError(null)
-    const [{ data: customersData, error: customersError }, { data: variantsData, error: variantsError }] =
-      await Promise.all([
-        supabase.from('customers').select('*').eq('is_deleted', false).order('name', { ascending: true }),
-        fetchActiveVariants()
-      ])
+    const [
+      { data: customersData, error: customersError },
+      { data: variantsData, error: variantsError },
+      { data: salesTotals }
+    ] = await Promise.all([
+      supabase.from('customers').select('*').eq('is_deleted', false).order('name', { ascending: true }),
+      fetchActiveVariants(),
+      fetchVariantSalesTotals()
+    ])
 
     if (customersError) {
       setLoadError(customersError.message)
@@ -96,6 +116,16 @@ export default function NewSale() {
 
     setCustomers((customersData ?? []) as Customer[])
     setVariants(variantsData)
+    // Rank only the currently-active variant list against sales history — this way a
+    // deactivated product/type's variant is never a candidate at all, rather than being
+    // ranked in and then dropped after the top-4 slice (which would shrink the result
+    // below 4 instead of backfilling from the next-best active variant).
+    setTopSellers(
+      variantsData
+        .filter((v) => (salesTotals[v.id] ?? 0) > 0)
+        .sort((a, b) => (salesTotals[b.id] ?? 0) - (salesTotals[a.id] ?? 0))
+        .slice(0, 4)
+    )
     setLoading(false)
   }
 
@@ -129,34 +159,6 @@ export default function NewSale() {
     setPrefillNotice(true)
   }, [loading, variants, customers, location.state])
 
-  const productOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    variants.forEach((v) => {
-      if (!map.has(v.product_id)) map.set(v.product_id, v.product_name)
-    })
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [variants])
-
-  const typeOptions = useMemo(() => {
-    if (!pickProductId) return []
-    const map = new Map<string, { id: string; label: string }>()
-    variants
-      .filter((v) => v.product_id === pickProductId)
-      .forEach((v) => {
-        if (!map.has(v.type_id)) map.set(v.type_id, { id: v.type_id, label: v.type_name })
-      })
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [variants, pickProductId])
-
-  const sizeOptions = useMemo(() => {
-    if (!pickTypeId) return []
-    return variants.filter((v) => v.type_id === pickTypeId).sort((a, b) => a.size - b.size)
-  }, [variants, pickTypeId])
-
-  // A type whose only variant is size 0 has no meaningful size dimension at all — skip
-  // the size step for it entirely rather than making the cashier pick a single option.
-  const isSizelessType = sizeOptions.length > 0 && sizeOptions.every((v) => v.size === 0)
-
   function addToCart(variant: VariantWithContext) {
     setCart((prev) => {
       const existing = prev.find((l) => l.variant.id === variant.id)
@@ -167,36 +169,11 @@ export default function NewSale() {
     })
   }
 
-  function handleProductPick(id: string) {
-    setPickProductId(id)
-    setPickTypeId('')
-    setPickVariantId('')
-  }
-
-  function handleTypePick(id: string) {
-    setPickTypeId(id)
-    setPickVariantId('')
-
-    // Sizeless type (its only variant is size 0) — nothing left to pick, so add it
-    // straight away instead of showing a size dropdown with one blank-looking option.
-    // Deliberately NOT resetting pickTypeId back to '' here — sizeOptions/isSizelessType
-    // are both derived from it, so clearing it would make the Size field reappear (empty,
-    // disabled) instead of staying hidden. Leaving Type selected also matches how the
-    // normal sized flow already keeps Product/Type selected after adding an item.
-    const optionsForType = variants.filter((v) => v.type_id === id)
-    if (optionsForType.length > 0 && optionsForType.every((v) => v.size === 0)) {
-      addToCart(optionsForType[0])
-    }
-  }
-
-  function handleSizePick(id: string) {
-    setPickVariantId(id)
-    const variant = sizeOptions.find((v) => v.id === id)
-    if (variant) {
-      addToCart(variant)
-      setPickVariantId('')
-    }
-  }
+  const cartQtyByVariantId = useMemo(() => {
+    const map = new Map<string, number>()
+    cart.forEach((l) => map.set(l.variant.id, l.qty))
+    return map
+  }, [cart])
 
   function updateQty(variantId: string, qty: number) {
     setCart((prev) => prev.map((l) => (l.variant.id === variantId ? { ...l, qty: Math.max(1, qty) } : l)))
@@ -225,6 +202,7 @@ export default function NewSale() {
     setCustomers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
     setSelectedCustomer(created)
     setCustomerDialogOpen(false)
+    setCustomerSheetOpen(false)
   }
 
   // Discount is never automatic — it only applies once "Apply discount" is clicked, and
@@ -288,9 +266,6 @@ export default function NewSale() {
     setCart([])
     setDiscountApplied(false)
     setSelectedCustomer(null)
-    setPickProductId('')
-    setPickTypeId('')
-    setPickVariantId('')
     setAmountPaid('')
     setNote('')
     setCreatedBy('')
@@ -300,9 +275,16 @@ export default function NewSale() {
   if (loading) {
     return (
       <Box sx={{ maxWidth: 720, mx: 'auto' }}>
-        <Typography variant="h4" sx={{ mb: 3 }}>
-          New sale
-        </Typography>
+        <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 3 }}>
+          <IconButton
+            onClick={() => navigate('/')}
+            aria-label="Back to dashboard"
+            sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5 }}
+          >
+            <BackIcon />
+          </IconButton>
+          <Typography variant="h4">New sale</Typography>
+        </Stack>
         <Stack spacing={2}>
           <FormSkeleton fields={1} actionWidth={100} />
           <FormSkeleton fields={3} actionWidth={100} />
@@ -322,9 +304,16 @@ export default function NewSale() {
 
   return (
     <Box sx={{ maxWidth: 720, mx: 'auto' }}>
-      <Typography variant="h4" sx={{ mb: 3 }}>
-        New sale
-      </Typography>
+      <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 3 }}>
+        <IconButton
+          onClick={() => navigate('/')}
+          aria-label="Back to dashboard"
+          sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5 }}
+        >
+          <BackIcon />
+        </IconButton>
+        <Typography variant="h4">New sale</Typography>
+      </Stack>
 
       {prefillNotice && (
         <Alert severity="info" sx={{ mb: 2 }} onClose={() => setPrefillNotice(false)}>
@@ -347,248 +336,370 @@ export default function NewSale() {
       )}
 
       <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-          Customer
-        </Typography>
-        <Stack direction="row" gap={1} alignItems="flex-start">
-          <Autocomplete
-            sx={{ flex: 1 }}
-            options={customers}
-            getOptionLabel={(c) => `${c.name}${c.phone ? ` · ${c.phone}` : ''}`}
-            value={selectedCustomer}
-            onChange={(_, value) => setSelectedCustomer(value)}
-            isOptionEqualToValue={(a, b) => a.id === b.id}
-            renderInput={(params) => <TextField {...params} label="Customer (optional)" placeholder="Walk-in customer" />}
-          />
-          <Button variant="outlined" startIcon={<PersonAddIcon />} onClick={() => setCustomerDialogOpen(true)} sx={{ mt: 0.25 }}>
-            New
-          </Button>
-        </Stack>
+        <Box
+          onClick={() => setCustomerSheetOpen(true)}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            p: 1.25,
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            cursor: 'pointer'
+          }}
+        >
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              bgcolor: 'action.hover',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}
+          >
+            <PersonIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {selectedCustomer ? selectedCustomer.name : 'Walk-in customer'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Tap to choose customer
+            </Typography>
+          </Box>
+          <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+        </Box>
       </Paper>
 
-      <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-          Items
-        </Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} gap={1.5}>
-          <TextField select label="Product" value={pickProductId} onChange={(e) => handleProductPick(e.target.value)} fullWidth>
-            {productOptions.map((p) => (
-              <MenuItem key={p.id} value={p.id}>
-                {p.name}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <TextField
-            select
-            label="Type"
-            value={pickTypeId}
-            onChange={(e) => handleTypePick(e.target.value)}
-            disabled={!pickProductId}
-            fullWidth
-          >
-            {typeOptions.map((t) => (
-              <MenuItem key={t.id} value={t.id}>
-                {t.label}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          {!isSizelessType && (
-            <TextField
-              select
-              label="Size"
-              value={pickVariantId}
-              onChange={(e) => handleSizePick(e.target.value)}
-              disabled={!pickTypeId}
-              fullWidth
-            >
-              {sizeOptions.map((v) => (
-                <MenuItem key={v.id} value={v.id}>
-                  {formatSize(v.size)} — {formatMoney(v.unit_price)} · {v.current_stock} in stock
-                </MenuItem>
-              ))}
-            </TextField>
-          )}
-        </Stack>
-
-        {cart.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            No items added yet.
+      {topSellers.length > 0 && (
+        <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+            Top sellers
           </Typography>
-        ) : (
-          <>
-            {/* Mobile: stacked cards — a 6-column table doesn't fit a phone width */}
-            <Stack spacing={1.5} sx={{ mt: 2, display: { xs: 'flex', sm: 'none' } }}>
-              {cart.map((line) => (
-                <Paper key={line.variant.id} variant="outlined" sx={{ p: 1.5 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {line.variant.product_name} · {line.variant.type_name}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1 }}>
+            {topSellers.map((v) => {
+              const cartQty = cartQtyByVariantId.get(v.id) ?? 0
+              return (
+                <Paper
+                  key={v.id}
+                  variant="outlined"
+                  onClick={() => addToCart(v)}
+                  sx={{
+                    position: 'relative',
+                    p: 1.25,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    borderColor: cartQty > 0 ? 'primary.main' : 'divider',
+                    bgcolor: cartQty > 0 ? 'rgba(201,122,43,0.1)' : 'background.paper'
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                    {v.product_name} · {v.type_name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {v.size !== 0 ? formatSize(v.size) : ' '}
+                  </Typography>
+                  <Typography variant="mono" sx={{ fontSize: '0.7rem', opacity: 0.75, display: 'block' }}>
+                    {formatMoney(v.unit_price)}
+                  </Typography>
+                  {cartQty > 0 && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        bgcolor: 'primary.main',
+                        color: '#1B1710',
+                        fontSize: '0.6rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {cartQty}
+                    </Box>
+                  )}
+                </Paper>
+              )
+            })}
+          </Box>
+        </Paper>
+      )}
+
+      <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+        <ProductTypeSizePicker
+          variants={variants}
+          onPick={addToCart}
+          cartQtyByVariantId={cartQtyByVariantId}
+          autoAddSizeless
+          resetVariantAfterPick
+          layout="dropdown"
+        />
+      </Paper>
+
+      {cart.length > 0 && (
+        <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+            Cart
+          </Typography>
+
+          {/* Mobile: stacked cards — a 6-column table doesn't fit a phone width */}
+          <Stack spacing={1.5} sx={{ mt: 2, display: { xs: 'flex', sm: 'none' } }}>
+            {cart.map((line) => (
+              <Paper key={line.variant.id} variant="outlined" sx={{ p: 1.5 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {line.variant.product_name} · {line.variant.type_name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {line.variant.size !== 0 && `Size ${formatSize(line.variant.size)} · `}
+                      {formatMoney(line.variant.unit_price)} each
+                    </Typography>
+                    {line.qty > line.variant.current_stock && (
+                      <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
+                        Only {line.variant.current_stock} in stock
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {line.variant.size !== 0 && `Size ${formatSize(line.variant.size)} · `}
-                        {formatMoney(line.variant.unit_price)} each
+                    )}
+                  </Box>
+                  <IconButton size="small" onClick={() => removeLine(line.variant.id)} sx={{ flexShrink: 0 }}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
+                  <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
+                  <Box sx={{ textAlign: 'right' }}>
+                    {lineDiscount(line) > 0 && (
+                      <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
+                        −{formatMoney(lineDiscount(line))} discount
                       </Typography>
+                    )}
+                    <Typography variant="mono" sx={{ fontWeight: 600 }}>
+                      {formatMoney(lineTotal(line))}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+
+          {/* Desktop/tablet: table */}
+          <Box sx={{ mt: 2, overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Item</TableCell>
+                  <TableCell>Size</TableCell>
+                  <TableCell align="right">Price</TableCell>
+                  <TableCell align="right">Qty</TableCell>
+                  {discountApplied && <TableCell align="right">Discount</TableCell>}
+                  <TableCell align="right">Line total</TableCell>
+                  <TableCell align="right"></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {cart.map((line) => (
+                  <TableRow key={line.variant.id}>
+                    <TableCell>
+                      {line.variant.product_name} · {line.variant.type_name}
                       {line.qty > line.variant.current_stock && (
                         <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
                           Only {line.variant.current_stock} in stock
                         </Typography>
                       )}
-                    </Box>
-                    <IconButton size="small" onClick={() => removeLine(line.variant.id)} sx={{ flexShrink: 0 }}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Stack>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
-                    <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
-                    <Box sx={{ textAlign: 'right' }}>
-                      {lineDiscount(line) > 0 && (
-                        <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
-                          −{formatMoney(lineDiscount(line))} discount
-                        </Typography>
-                      )}
-                      <Typography variant="mono" sx={{ fontWeight: 600 }}>
-                        {formatMoney(lineTotal(line))}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Paper>
-              ))}
-            </Stack>
-
-            {/* Desktop/tablet: table */}
-            <Box sx={{ mt: 2, overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Item</TableCell>
-                    <TableCell>Size</TableCell>
-                    <TableCell align="right">Price</TableCell>
-                    <TableCell align="right">Qty</TableCell>
-                    {discountApplied && <TableCell align="right">Discount</TableCell>}
-                    <TableCell align="right">Line total</TableCell>
-                    <TableCell align="right"></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {cart.map((line) => (
-                    <TableRow key={line.variant.id}>
-                      <TableCell>
-                        {line.variant.product_name} · {line.variant.type_name}
-                        {line.qty > line.variant.current_stock && (
-                          <Typography variant="caption" color="error.main" sx={{ display: 'block' }}>
-                            Only {line.variant.current_stock} in stock
+                    </TableCell>
+                    <TableCell>{line.variant.size === 0 ? '' : formatSize(line.variant.size)}</TableCell>
+                    <TableCell align="right">
+                      <Typography variant="mono">{formatMoney(line.variant.unit_price)}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
+                    </TableCell>
+                    {discountApplied && (
+                      <TableCell align="right">
+                        {lineDiscount(line) > 0 ? (
+                          <Typography variant="mono" color="success.main">
+                            −{formatMoney(lineDiscount(line))}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            —
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{line.variant.size === 0 ? '' : formatSize(line.variant.size)}</TableCell>
-                      <TableCell align="right">
-                        <Typography variant="mono">{formatMoney(line.variant.unit_price)}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <QtyStepper qty={line.qty} onChange={(qty) => updateQty(line.variant.id, qty)} />
-                      </TableCell>
-                      {discountApplied && (
-                        <TableCell align="right">
-                          {lineDiscount(line) > 0 ? (
-                            <Typography variant="mono" color="success.main">
-                              −{formatMoney(lineDiscount(line))}
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">
-                              —
-                            </Typography>
-                          )}
-                        </TableCell>
-                      )}
-                      <TableCell align="right">
-                        <Typography variant="mono">{formatMoney(lineTotal(line))}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" onClick={() => removeLine(line.variant.id)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Box>
-          </>
-        )}
+                    )}
+                    <TableCell align="right">
+                      <Typography variant="mono">{formatMoney(lineTotal(line))}</Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => removeLine(line.variant.id)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        </Paper>
+      )}
 
-        {cart.length > 0 && (
-          <>
-            <Divider sx={{ my: 1.5 }} />
-            <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-              <Stack direction="row" gap={1}>
-                <Button variant="outlined" size="small" onClick={handleApplyDiscount}>
-                  Apply discount
-                </Button>
-                {discountApplied && (
-                  <Button variant="text" size="small" color="error" onClick={handleRemoveDiscount}>
-                    Remove discount
-                  </Button>
-                )}
-              </Stack>
-              <Box sx={{ textAlign: 'right' }}>
-                {totalDiscount > 0 && (
-                  <Typography variant="body2" color="success.main">
-                    Discount applied: −{formatMoney(totalDiscount)}
-                  </Typography>
-                )}
-                <Typography variant="subtitle1">Total: {formatMoney(total)}</Typography>
-              </Box>
-            </Stack>
-          </>
-        )}
-      </Paper>
-
-      <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-          Payment
-        </Typography>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+      {cart.length > 0 && (
+        <Paper sx={{ p: 2.5, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+            Payment
+          </Typography>
+          <Stack spacing={1.5}>
             <TextField
-              label="Amount received now (Rs.)"
+              placeholder="Amount received now (Rs.)"
+              inputProps={{ 'aria-label': 'Amount received now (Rs.)', step: '0.01', min: 0 }}
               type="number"
-              inputProps={{ step: '0.01', min: 0 }}
               value={amountPaid}
               onChange={(e) => setAmountPaid(e.target.value)}
               fullWidth
             />
             <Button
-              variant="outlined"
-              startIcon={<PaymentsIcon />}
               onClick={() => setAmountPaid(String(total / 100))}
               disabled={total === 0}
-              sx={{ flexShrink: 0 }}
+              fullWidth
+              sx={flatButtonSx}
             >
               Full amount received
             </Button>
+            <Typography variant="body2" color={balanceDue > 0 ? 'warning.main' : 'text.secondary'}>
+              Balance due: {formatMoney(balanceDue)}
+            </Typography>
+
+            <TextField
+              placeholder="Note (optional)"
+              inputProps={{ 'aria-label': 'Note' }}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+            />
+
+            <TextField
+              placeholder="Sold by (optional)"
+              inputProps={{ 'aria-label': 'Sold by' }}
+              value={createdBy}
+              onChange={(e) => setCreatedBy(e.target.value)}
+              fullWidth
+            />
           </Stack>
-          <Typography variant="body2" color={balanceDue > 0 ? 'warning.main' : 'text.secondary'}>
-            Balance due: {formatMoney(balanceDue)}
-          </Typography>
+        </Paper>
+      )}
 
-          <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} fullWidth multiline minRows={2} />
-
-          <TextField
-            label="Sold by (optional)"
-            placeholder="e.g. owner, father"
-            value={createdBy}
-            onChange={(e) => setCreatedBy(e.target.value)}
+      {/* Sticky bottom bar — replaces the app's bottom tab bar while this page is
+          mounted (see Layout.tsx's HIDE_BOTTOM_NAV_ROUTES) so the two never stack. */}
+      <Box
+        sx={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: (t) => t.zIndex.appBar,
+          bgcolor: 'background.paper',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          px: 2,
+          pt: 1.5,
+          pb: 'calc(12px + env(safe-area-inset-bottom))'
+        }}
+      >
+        <Box sx={{ maxWidth: 720, mx: 'auto' }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
+            <Stack direction="row" gap={1}>
+              <Button variant="outlined" size="small" onClick={handleApplyDiscount} disabled={discountApplied || cart.length === 0}>
+                {discountApplied ? 'Discount applied' : 'Apply discount'}
+              </Button>
+              {discountApplied && (
+                <Button variant="text" size="small" color="error" onClick={handleRemoveDiscount}>
+                  Remove
+                </Button>
+              )}
+            </Stack>
+            <Box sx={{ textAlign: 'right' }}>
+              {totalDiscount > 0 && (
+                <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
+                  −{formatMoney(totalDiscount)} discount
+                </Typography>
+              )}
+              <Typography variant="mono" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
+                {formatMoney(total)}
+              </Typography>
+            </Box>
+          </Stack>
+          <Button
+            variant="contained"
+            size="large"
             fullWidth
-          />
-
-          <Button variant="contained" size="large" disabled={!valid || submitting} onClick={() => void handleSubmit()}>
+            disabled={!valid || submitting}
+            onClick={() => void handleSubmit()}
+          >
             Complete sale
           </Button>
-        </Stack>
-      </Paper>
+        </Box>
+      </Box>
+
+      <BottomSheet open={customerSheetOpen} onClose={() => setCustomerSheetOpen(false)} title="Choose customer">
+        <List sx={{ pt: 0 }}>
+          <ListItemButton
+            selected={!selectedCustomer}
+            onClick={() => {
+              setSelectedCustomer(null)
+              setCustomerSheetOpen(false)
+            }}
+            sx={{ borderRadius: 2, mb: 0.5 }}
+          >
+            <ListItemText primary="Walk-in customer" />
+            {!selectedCustomer && (
+              <ListItemIcon sx={{ minWidth: 0, color: 'primary.main' }}>
+                <CheckIcon fontSize="small" />
+              </ListItemIcon>
+            )}
+          </ListItemButton>
+          {customers.map((c) => (
+            <ListItemButton
+              key={c.id}
+              selected={selectedCustomer?.id === c.id}
+              onClick={() => {
+                setSelectedCustomer(c)
+                setCustomerSheetOpen(false)
+              }}
+              sx={{ borderRadius: 2, mb: 0.5 }}
+            >
+              <ListItemText primary={c.name} secondary={c.phone || undefined} />
+              {selectedCustomer?.id === c.id && (
+                <ListItemIcon sx={{ minWidth: 0, color: 'primary.main' }}>
+                  <CheckIcon fontSize="small" />
+                </ListItemIcon>
+              )}
+            </ListItemButton>
+          ))}
+        </List>
+        <Divider sx={{ my: 1 }} />
+        <Button
+          fullWidth
+          variant="outlined"
+          startIcon={<PersonAddIcon />}
+          onClick={() => {
+            setCustomerSheetOpen(false)
+            setCustomerDialogOpen(true)
+          }}
+        >
+          New customer
+        </Button>
+      </BottomSheet>
 
       <CustomerDialog
         open={customerDialogOpen}

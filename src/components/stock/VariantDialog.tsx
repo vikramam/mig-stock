@@ -62,18 +62,18 @@ export default function VariantDialog({
             ))}
           </TextField>
           <TextField
-            label="Unit price (Rs.)"
+            placeholder="Unit price (Rs.)"
             type="number"
-            inputProps={{ step: '0.01', min: 0 }}
+            inputProps={{ 'aria-label': 'Unit price (Rs.)', step: '0.01', min: 0 }}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             fullWidth
           />
           {!initial && (
             <TextField
-              label="Opening stock (optional)"
+              placeholder="Opening stock (optional)"
               type="number"
-              inputProps={{ step: '1', min: 0 }}
+              inputProps={{ 'aria-label': 'Opening stock (optional)', step: '1', min: 0 }}
               value={openingStock}
               onChange={(e) => setOpeningStock(e.target.value)}
               helperText="Leave blank to start at 0 — you can add stock later."

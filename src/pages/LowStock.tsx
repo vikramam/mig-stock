@@ -4,11 +4,6 @@ import {
   Box,
   Typography,
   Paper,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   Button,
   Alert,
   Stack,
@@ -17,12 +12,15 @@ import {
   FormControlLabel,
   Switch
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { supabase, formatMoney } from '../lib/supabase'
+import { listRowSx } from '../theme'
 import { LowStockRow, formatSize } from '../types'
 import { TableSkeleton } from '../components/skeletons'
 
 export default function LowStock() {
   const navigate = useNavigate()
+  const theme = useTheme()
   const [rows, setRows] = useState<LowStockRow[]>([])
   const [threshold, setThreshold] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -117,10 +115,11 @@ export default function LowStock() {
 
       <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" sx={{ mb: 2 }}>
         <TextField
-          label="Search product or type"
+          placeholder="Search product or type"
           size="small"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          inputProps={{ 'aria-label': 'Search product or type' }}
           sx={{ minWidth: 220 }}
         />
         <TextField
@@ -168,42 +167,37 @@ export default function LowStock() {
           <Typography color="text.secondary">No low stock items match these filters.</Typography>
         </Paper>
       ) : (
-        <Paper sx={{ border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Product</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Size</TableCell>
-                <TableCell align="right">Stock</TableCell>
-                <TableCell align="right">Price</TableCell>
-                <TableCell align="right"></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {visibleRows.map((row) => (
-                <TableRow key={row.variant_id}>
-                  <TableCell>{row.product_name}</TableCell>
-                  <TableCell>{row.type_name}</TableCell>
-                  <TableCell>{formatSize(row.size)}</TableCell>
-                  <TableCell align="right">
-                    <Typography variant="mono" color={row.current_stock <= 0 ? 'error.main' : 'warning.main'}>
-                      {row.current_stock}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Typography variant="mono">{formatMoney(row.unit_price)}</Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" variant="outlined" onClick={() => navigate(`/stock/add?variant=${row.variant_id}`)}>
-                      Add stock
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+        <Stack spacing={1.25}>
+          {visibleRows.map((row) => (
+            <Box key={row.variant_id} sx={listRowSx(theme)}>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                  {row.product_name} · {row.type_name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Size {formatSize(row.size)}
+                </Typography>
+              </Box>
+              <Stack direction="row" alignItems="center" gap={2} sx={{ flexShrink: 0 }}>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography
+                    variant="mono"
+                    color={row.current_stock <= 0 ? 'error.main' : 'warning.main'}
+                    sx={{ display: 'block', fontWeight: 700 }}
+                  >
+                    {row.current_stock}
+                  </Typography>
+                  <Typography variant="mono" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                    {formatMoney(row.unit_price)}
+                  </Typography>
+                </Box>
+                <Button size="small" variant="outlined" onClick={() => navigate(`/stock/add?variant=${row.variant_id}`)}>
+                  Restock
+                </Button>
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
       )}
     </Box>
   )

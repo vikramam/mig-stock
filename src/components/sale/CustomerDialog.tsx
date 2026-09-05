@@ -42,10 +42,24 @@ export default function CustomerDialog({
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
-          <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} autoFocus fullWidth />
-          <TextField label="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth />
           <TextField
-            label="Note (optional)"
+            placeholder="Name"
+            inputProps={{ 'aria-label': 'Name' }}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            fullWidth
+          />
+          <TextField
+            placeholder="Phone (optional)"
+            inputProps={{ 'aria-label': 'Phone (optional)' }}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            placeholder="Note (optional)"
+            inputProps={{ 'aria-label': 'Note (optional)' }}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             fullWidth

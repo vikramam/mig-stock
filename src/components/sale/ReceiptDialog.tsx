@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Button, Alert, Skeleton, Stack, IconButton } from '@mui/material'
-import CloseIcon from '@mui/icons-material/CloseSharp'
+import { Box, Button, Alert, Skeleton, Stack } from '@mui/material'
 import ShareIcon from '@mui/icons-material/IosShareSharp'
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfSharp'
+import { FileDownloadIcon as PictureAsPdfIcon } from '../icons'
 import { downloadBlob, receiptToPdfBlob, receiptToPngBlob, shareOrDownload } from '../../lib/receipt'
 import { fetchReceiptData } from '../../lib/receiptData'
 import Receipt, { ReceiptData } from './Receipt'
+import BottomSheet from '../common/BottomSheet'
 
 export default function ReceiptDialog({
   open,
@@ -70,57 +70,52 @@ export default function ReceiptDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        Receipt
-        <IconButton size="small" onClick={onClose}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ bgcolor: 'action.hover' }}>
-        {loading && (
-          // Mimics Receipt.tsx's own fixed white card (see that file for why it's
-          // hardcoded rather than theme-driven) so the shimmer previews the right shape
-          // in the right tone — a dark-mode skeleton tint would be invisible here.
-          <Box sx={{ width: 380, mx: 'auto', bgcolor: '#FFFFFF', p: 3 }}>
-            <Stack spacing={1.5} alignItems="center">
-              <Skeleton variant="text" width="60%" height={32} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
-              <Skeleton variant="text" width="40%" height={20} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
-            </Stack>
-            <Stack spacing={1.25} sx={{ mt: 3 }}>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Stack key={i} direction="row" justifyContent="space-between">
-                  <Skeleton variant="text" width="50%" height={20} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
-                  <Skeleton variant="text" width="20%" height={20} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
-                </Stack>
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        {!loading && loadError && <Alert severity="error">Failed to load receipt: {loadError}</Alert>}
-
-        {!loading && actionError && (
-          <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setActionError(null)}>
-            {actionError}
-          </Alert>
-        )}
-
-        {!loading && data && (
-          <Stack sx={{ py: 2 }}>
-            <Receipt ref={receiptRef} data={data} />
+    <BottomSheet open={open} onClose={onClose} title="Sale complete">
+      {loading && (
+        // Mimics Receipt.tsx's own fixed white card (see that file for why it's
+        // hardcoded rather than theme-driven) so the shimmer previews the right shape
+        // in the right tone — a dark-mode skeleton tint would be invisible here.
+        <Box sx={{ width: '100%', maxWidth: 380, mx: 'auto', bgcolor: '#FFFFFF', p: 3, borderRadius: 3 }}>
+          <Stack spacing={1.5} alignItems="center">
+            <Skeleton variant="text" width="60%" height={32} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
+            <Skeleton variant="text" width="40%" height={20} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
           </Stack>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-        <Button startIcon={<PictureAsPdfIcon />} disabled={!data || busy} onClick={() => void handleDownloadPdf()}>
+          <Stack spacing={1.25} sx={{ mt: 3 }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Stack key={i} direction="row" justifyContent="space-between">
+                <Skeleton variant="text" width="50%" height={20} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
+                <Skeleton variant="text" width="20%" height={20} sx={{ bgcolor: 'rgba(0,0,0,0.08)' }} />
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {!loading && loadError && <Alert severity="error">Failed to load receipt: {loadError}</Alert>}
+
+      {!loading && actionError && (
+        <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setActionError(null)}>
+          {actionError}
+        </Alert>
+      )}
+
+      {!loading && data && (
+        <Stack sx={{ py: 1 }}>
+          <Receipt ref={receiptRef} data={data} />
+        </Stack>
+      )}
+
+      <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+        <Button fullWidth onClick={onClose}>
+          Close
+        </Button>
+        <Button fullWidth startIcon={<PictureAsPdfIcon />} disabled={!data || busy} onClick={() => void handleDownloadPdf()}>
           PDF
         </Button>
-        <Button variant="contained" startIcon={<ShareIcon />} disabled={!data || busy} onClick={() => void handleShare()}>
+        <Button fullWidth variant="contained" startIcon={<ShareIcon />} disabled={!data || busy} onClick={() => void handleShare()}>
           Share
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Stack>
+    </BottomSheet>
   )
 }

@@ -7,14 +7,6 @@ import {
   Switch,
   IconButton,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
   Chip,
   Stack,
   Snackbar,
@@ -25,12 +17,11 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMoreSharp'
-import AddIcon from '@mui/icons-material/AddSharp'
+import { useTheme } from '@mui/material/styles'
 import EditIcon from '@mui/icons-material/EditSharp'
-import DeleteIcon from '@mui/icons-material/DeleteSharp'
-import InventoryIcon from '@mui/icons-material/Inventory2Sharp'
+import { AddIcon, DeleteIcon, InventoryIcon, ChevronRightIcon, BackIcon as ArrowBackIcon } from '../components/icons'
 import { supabase, formatMoney } from '../lib/supabase'
+import { listRowSx } from '../theme'
 import { Product, ProductType, Variant, Size, formatSize } from '../types'
 import ProductDialog from '../components/stock/ProductDialog'
 import TypeDialog from '../components/stock/TypeDialog'
@@ -47,8 +38,13 @@ interface ProductRow extends Product {
   product_types: TypeRow[]
 }
 
+// Catalog's native-mobile drill-down: products -> types -> variants, all read from the
+// SAME already-loaded `products` tree (see loadCatalog below) — no per-level fetches.
+type CatalogView = 'products' | 'types' | 'variants'
+
 export default function StockManagement() {
   const navigate = useNavigate()
+  const theme = useTheme()
   const [products, setProducts] = useState<ProductRow[]>([])
   const [sizes, setSizes] = useState<Size[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +54,10 @@ export default function StockManagement() {
   const [saving, setSaving] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; severity: 'success' | 'error' } | null>(null)
+
+  const [view, setView] = useState<CatalogView>('products')
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
 
   const [deleteVariantTarget, setDeleteVariantTarget] = useState<{ variant: VariantRow; typeLabel: string } | null>(null)
   const [deletingVariant, setDeletingVariant] = useState(false)
@@ -102,6 +102,29 @@ export default function StockManagement() {
 
   function isUniqueViolation(error: { code?: string } | null): boolean {
     return error?.code === '23505'
+  }
+
+  // ---------- Navigation ----------
+  function openTypes(productId: string) {
+    setSelectedProductId(productId)
+    setSelectedTypeId(null)
+    setView('types')
+  }
+
+  function openVariants(typeId: string) {
+    setSelectedTypeId(typeId)
+    setView('variants')
+  }
+
+  function backToProducts() {
+    setView('products')
+    setSelectedProductId(null)
+    setSelectedTypeId(null)
+  }
+
+  function backToTypes() {
+    setView('types')
+    setSelectedTypeId(null)
   }
 
   // ---------- Product ----------
@@ -277,6 +300,23 @@ export default function StockManagement() {
 
   const visibleProducts = showInactive ? products : products.filter((p) => p.active)
 
+  const selectedProduct = selectedProductId ? products.find((p) => p.id === selectedProductId) ?? null : null
+  const visibleTypes = selectedProduct
+    ? showInactive
+      ? selectedProduct.product_types
+      : selectedProduct.product_types.filter((t) => t.active)
+    : []
+
+  const selectedType = selectedTypeId ? selectedProduct?.product_types.find((t) => t.id === selectedTypeId) ?? null : null
+  const visibleVariants = selectedType
+    ? selectedType.variants.filter((v) => {
+        if (!showInactive && !v.active) return false
+        if (!showDeletedVariants && v.is_deleted) return false
+        return true
+      })
+    : []
+  const selectedTypeLabel = selectedProduct && selectedType ? `${selectedProduct.name} / ${selectedType.type_name}` : ''
+
   if (loading) {
     return (
       <Box>
@@ -296,288 +336,260 @@ export default function StockManagement() {
     )
   }
 
+  const showInactiveToggle = (
+    <FormControlLabel
+      control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
+      label="Show inactive"
+    />
+  )
+
   return (
     <Box>
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        alignItems={{ xs: 'stretch', sm: 'center' }}
-        justifyContent="space-between"
-        sx={{ mb: 2 }}
-        gap={1.5}
-      >
-        <Typography variant="h4">Catalog</Typography>
-        <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
-          <FormControlLabel
-            control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
-            label="Show inactive"
-          />
-          <FormControlLabel
-            control={<Switch checked={showDeletedVariants} onChange={(e) => setShowDeletedVariants(e.target.checked)} />}
-            label="Show deleted variants"
-          />
-          <Button variant="outlined" startIcon={<InventoryIcon />} onClick={() => navigate('/stock/add')}>
-            Manage stock
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setProductDialog({ open: true, editing: undefined })}
-          >
-            Add product
-          </Button>
+      {/* ---------- Header (per drill-down level) ---------- */}
+      {view === 'products' && (
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          justifyContent="space-between"
+          sx={{ mb: 2 }}
+          gap={1.5}
+        >
+          <Typography variant="h4">Catalog</Typography>
+          <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+            {showInactiveToggle}
+            <Button variant="outlined" startIcon={<InventoryIcon />} onClick={() => navigate('/stock/add')}>
+              Manage stock
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setProductDialog({ open: true, editing: undefined })}
+            >
+              Add product
+            </Button>
+          </Stack>
         </Stack>
-      </Stack>
-
-      {visibleProducts.length === 0 && (
-        <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
-          <Typography color="text.secondary">No products yet — add one to get started.</Typography>
-        </Paper>
       )}
 
-      <Stack spacing={1.5}>
-        {visibleProducts.map((product) => {
-          const visibleTypes = showInactive
-            ? product.product_types
-            : product.product_types.filter((t) => t.active)
+      {view === 'types' && selectedProduct && (
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          justifyContent="space-between"
+          sx={{ mb: 2 }}
+          gap={1.5}
+        >
+          <Stack direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}>
+            <IconButton onClick={backToProducts} aria-label="Back to products">
+              <ArrowBackIcon />
+            </IconButton>
+            <Typography variant="h4" noWrap>
+              {selectedProduct.name}
+            </Typography>
+            {!selectedProduct.active && <Chip size="small" label="Inactive" />}
+          </Stack>
+          <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+            {showInactiveToggle}
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() =>
+                setTypeDialog({ open: true, productId: selectedProduct.id, productName: selectedProduct.name, editing: undefined })
+              }
+            >
+              Add type
+            </Button>
+          </Stack>
+        </Stack>
+      )}
 
-          return (
-            <Accordion key={product.id} sx={{ border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}>
-              <AccordionSummary component="div" expandIcon={<ExpandMoreIcon />}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ width: '100%', pr: 1 }}>
+      {view === 'variants' && selectedProduct && selectedType && (
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          justifyContent="space-between"
+          sx={{ mb: 2 }}
+          gap={1.5}
+        >
+          <Stack direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}>
+            <IconButton onClick={backToTypes} aria-label="Back to types">
+              <ArrowBackIcon />
+            </IconButton>
+            <Typography variant="h4" noWrap>
+              {selectedProduct.name} / {selectedType.type_name}
+            </Typography>
+            {!selectedType.active && <Chip size="small" label="Inactive" />}
+          </Stack>
+          <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+            {showInactiveToggle}
+            <FormControlLabel
+              control={
+                <Switch checked={showDeletedVariants} onChange={(e) => setShowDeletedVariants(e.target.checked)} />
+              }
+              label="Show deleted variants"
+            />
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() =>
+                setVariantDialog({
+                  open: true,
+                  typeId: selectedType.id,
+                  typeLabel: selectedTypeLabel,
+                  editing: undefined
+                })
+              }
+            >
+              Add variant
+            </Button>
+          </Stack>
+        </Stack>
+      )}
+
+      {/* ---------- Body (per drill-down level) ---------- */}
+      {view === 'products' && (
+        <>
+          {visibleProducts.length === 0 && (
+            <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
+              <Typography color="text.secondary">No products yet — add one to get started.</Typography>
+            </Paper>
+          )}
+          <Stack spacing={1.25}>
+            {visibleProducts.map((product) => (
+              <Box
+                key={product.id}
+                onClick={() => openTypes(product.id)}
+                sx={{ ...listRowSx(theme), cursor: 'pointer', opacity: product.active ? 1 : 0.6 }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Stack direction="row" alignItems="center" gap={1}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
                       {product.name}
                     </Typography>
                     {!product.active && <Chip size="small" label="Inactive" />}
                   </Stack>
-                  <Stack direction="row" alignItems="center" gap={0.5} onClick={(e) => e.stopPropagation()}>
-                    <IconButton size="small" onClick={() => setProductDialog({ open: true, editing: product })}>
+                  <Typography variant="caption" color="text.secondary">
+                    {product.product_types.length} type{product.product_types.length === 1 ? '' : 's'}
+                  </Typography>
+                </Box>
+                <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                  <IconButton size="small" onClick={() => setProductDialog({ open: true, editing: product })}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <Switch size="small" checked={product.active} onChange={() => void toggleProductActive(product)} />
+                </Stack>
+                <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
+              </Box>
+            ))}
+          </Stack>
+        </>
+      )}
+
+      {view === 'types' && selectedProduct && (
+        <>
+          {visibleTypes.length === 0 && (
+            <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
+              <Typography color="text.secondary">No types yet — add one to get started.</Typography>
+            </Paper>
+          )}
+          <Stack spacing={1.25}>
+            {visibleTypes.map((type) => (
+              <Box
+                key={type.id}
+                onClick={() => openVariants(type.id)}
+                sx={{ ...listRowSx(theme), cursor: 'pointer', opacity: type.active ? 1 : 0.6 }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                      {type.type_name}
+                    </Typography>
+                    {!type.active && <Chip size="small" label="Inactive" />}
+                    {type.default_discount > 0 && (
+                      <Chip size="small" variant="outlined" label={`Discount ${formatMoney(type.default_discount)}/unit`} />
+                    )}
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    {type.variants.length} variant{type.variants.length === 1 ? '' : 's'}
+                  </Typography>
+                </Box>
+                <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setTypeDialog({ open: true, productName: selectedProduct.name, editing: type })}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <Switch size="small" checked={type.active} onChange={() => void toggleTypeActive(type)} />
+                </Stack>
+                <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
+              </Box>
+            ))}
+          </Stack>
+        </>
+      )}
+
+      {view === 'variants' && selectedProduct && selectedType && (
+        <>
+          {visibleVariants.length === 0 && (
+            <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
+              <Typography color="text.secondary">No variants yet.</Typography>
+            </Paper>
+          )}
+          <Stack spacing={1.25}>
+            {visibleVariants.map((variant) => (
+              <Box
+                key={variant.id}
+                sx={{ ...listRowSx(theme), opacity: variant.active && !variant.is_deleted ? 1 : 0.6 }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Stack direction="row" alignItems="center" gap={0.75}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      {formatSize(variant.sizes?.value ?? 0)}
+                    </Typography>
+                    {variant.is_deleted && <Chip size="small" label="Deleted" />}
+                  </Stack>
+                  <Typography
+                    variant="mono"
+                    color={variant.current_stock <= 0 ? 'error.main' : 'text.secondary'}
+                    sx={{ fontSize: 12 }}
+                  >
+                    Stock {variant.current_stock} · {formatMoney(variant.unit_price)}
+                  </Typography>
+                </Box>
+                {!variant.is_deleted && (
+                  <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }}>
+                    <Switch size="small" checked={variant.active} onChange={() => void toggleVariantActive(variant)} />
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        setVariantDialog({
+                          open: true,
+                          typeLabel: selectedTypeLabel,
+                          editing: variant
+                        })
+                      }
+                    >
                       <EditIcon fontSize="small" />
                     </IconButton>
-                    <Switch
+                    <IconButton
                       size="small"
-                      checked={product.active}
-                      onChange={() => void toggleProductActive(product)}
-                    />
+                      onClick={() =>
+                        setDeleteVariantTarget({
+                          variant,
+                          typeLabel: selectedTypeLabel
+                        })
+                      }
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
                   </Stack>
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={2}>
-                  {visibleTypes.map((type) => {
-                    const visibleVariants = type.variants.filter((v) => {
-                      if (!showInactive && !v.active) return false
-                      if (!showDeletedVariants && v.is_deleted) return false
-                      return true
-                    })
-                    return (
-                      <Accordion
-                        key={type.id}
-                        sx={{ border: '1px solid', borderColor: 'divider', '&:before': { display: 'none' } }}
-                      >
-                        <AccordionSummary component="div" expandIcon={<ExpandMoreIcon />}>
-                          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1} sx={{ width: '100%', pr: 1 }}>
-                            <Stack direction="row" alignItems="center" gap={1}>
-                              <Typography variant="subtitle2">{type.type_name}</Typography>
-                              {!type.active && <Chip size="small" label="Inactive" />}
-                              {type.default_discount > 0 && (
-                                <Chip size="small" variant="outlined" label={`Discount ${formatMoney(type.default_discount)}/unit`} />
-                              )}
-                            </Stack>
-                            <Stack direction="row" alignItems="center" gap={0.5} onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="small"
-                                startIcon={<AddIcon fontSize="small" />}
-                                onClick={() =>
-                                  setVariantDialog({
-                                    open: true,
-                                    typeId: type.id,
-                                    typeLabel: `${product.name} / ${type.type_name}`,
-                                    editing: undefined
-                                  })
-                                }
-                              >
-                                Add variant
-                              </Button>
-                              <IconButton
-                                size="small"
-                                onClick={() => setTypeDialog({ open: true, productName: product.name, editing: type })}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <Switch size="small" checked={type.active} onChange={() => void toggleTypeActive(type)} />
-                            </Stack>
-                          </Stack>
-                        </AccordionSummary>
-                        <AccordionDetails>
-                        {visibleVariants.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary">
-                            No variants yet.
-                          </Typography>
-                        ) : (
-                          <>
-                            {/* Mobile: compact row list — a 5-column table is too tight on a phone */}
-                            <Stack sx={{ display: { xs: 'flex', sm: 'none' } }}>
-                              {visibleVariants.map((variant) => (
-                                <Stack
-                                  key={variant.id}
-                                  direction="row"
-                                  alignItems="center"
-                                  justifyContent="space-between"
-                                  gap={1}
-                                  sx={{
-                                    py: 1,
-                                    opacity: variant.active && !variant.is_deleted ? 1 : 0.5,
-                                    borderBottom: '1px solid',
-                                    borderColor: 'divider',
-                                    '&:last-of-type': { borderBottom: 'none' }
-                                  }}
-                                >
-                                  <Box>
-                                    <Stack direction="row" alignItems="center" gap={0.75}>
-                                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                        {formatSize(variant.sizes?.value ?? 0)}
-                                      </Typography>
-                                      {variant.is_deleted && <Chip size="small" label="Deleted" />}
-                                    </Stack>
-                                    <Typography variant="mono" color={variant.current_stock <= 0 ? 'error.main' : 'text.secondary'} sx={{ fontSize: 12 }}>
-                                      Stock {variant.current_stock} · {formatMoney(variant.unit_price)}
-                                    </Typography>
-                                  </Box>
-                                  {!variant.is_deleted && (
-                                    <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }}>
-                                      <Switch
-                                        size="small"
-                                        checked={variant.active}
-                                        onChange={() => void toggleVariantActive(variant)}
-                                      />
-                                      <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                          setVariantDialog({
-                                            open: true,
-                                            typeLabel: `${product.name} / ${type.type_name}`,
-                                            editing: variant
-                                          })
-                                        }
-                                      >
-                                        <EditIcon fontSize="small" />
-                                      </IconButton>
-                                      <IconButton
-                                        size="small"
-                                        onClick={() =>
-                                          setDeleteVariantTarget({
-                                            variant,
-                                            typeLabel: `${product.name} / ${type.type_name}`
-                                          })
-                                        }
-                                      >
-                                        <DeleteIcon fontSize="small" />
-                                      </IconButton>
-                                    </Stack>
-                                  )}
-                                </Stack>
-                              ))}
-                            </Stack>
-
-                            {/* Desktop/tablet: table */}
-                            <Box sx={{ overflowX: 'auto', display: { xs: 'none', sm: 'block' } }}>
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow>
-                                    <TableCell>Size</TableCell>
-                                    <TableCell align="right">Price</TableCell>
-                                    <TableCell align="right">Stock</TableCell>
-                                    <TableCell align="right">Active</TableCell>
-                                    <TableCell align="right">Actions</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {visibleVariants.map((variant) => (
-                                    <TableRow key={variant.id} sx={{ opacity: variant.active && !variant.is_deleted ? 1 : 0.5 }}>
-                                      <TableCell>
-                                        <Stack direction="row" alignItems="center" gap={0.75}>
-                                          {formatSize(variant.sizes?.value ?? 0)}
-                                          {variant.is_deleted && <Chip size="small" label="Deleted" />}
-                                        </Stack>
-                                      </TableCell>
-                                      <TableCell align="right">
-                                        <Typography variant="mono">{formatMoney(variant.unit_price)}</Typography>
-                                      </TableCell>
-                                      <TableCell align="right">
-                                        <Typography
-                                          variant="mono"
-                                          color={variant.current_stock <= 0 ? 'error.main' : 'text.primary'}
-                                        >
-                                          {variant.current_stock}
-                                        </Typography>
-                                      </TableCell>
-                                      <TableCell align="right">
-                                        {!variant.is_deleted && (
-                                          <Switch
-                                            size="small"
-                                            checked={variant.active}
-                                            onChange={() => void toggleVariantActive(variant)}
-                                          />
-                                        )}
-                                      </TableCell>
-                                      <TableCell align="right">
-                                        {!variant.is_deleted && (
-                                          <>
-                                            <IconButton
-                                              size="small"
-                                              onClick={() =>
-                                                setVariantDialog({
-                                                  open: true,
-                                                  typeLabel: `${product.name} / ${type.type_name}`,
-                                                  editing: variant
-                                                })
-                                              }
-                                            >
-                                              <EditIcon fontSize="small" />
-                                            </IconButton>
-                                            <IconButton
-                                              size="small"
-                                              onClick={() =>
-                                                setDeleteVariantTarget({
-                                                  variant,
-                                                  typeLabel: `${product.name} / ${type.type_name}`
-                                                })
-                                              }
-                                            >
-                                              <DeleteIcon fontSize="small" />
-                                            </IconButton>
-                                          </>
-                                        )}
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </Box>
-                          </>
-                        )}
-                        </AccordionDetails>
-                      </Accordion>
-                    )
-                  })}
-
-                  <Button
-                    size="small"
-                    startIcon={<AddIcon fontSize="small" />}
-                    sx={{ alignSelf: 'flex-start' }}
-                    onClick={() =>
-                      setTypeDialog({ open: true, productId: product.id, productName: product.name, editing: undefined })
-                    }
-                  >
-                    Add type
-                  </Button>
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
-          )
-        })}
-      </Stack>
+                )}
+              </Box>
+            ))}
+          </Stack>
+        </>
+      )}
 
       <ProductDialog
         open={productDialog.open}
