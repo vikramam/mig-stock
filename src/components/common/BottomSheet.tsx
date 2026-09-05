@@ -23,6 +23,13 @@ export default function BottomSheet({ open, onClose, children, title, maxWidth }
       anchor="bottom"
       open={open}
       onClose={onClose}
+      // MUI's default z-index scale puts Drawer (1200) BELOW Modal/Dialog (1300) — fine
+      // when a sheet is the only overlay open, but SaleDetailDialog opens ReceiptDialog
+      // (built on this component) on top of itself without closing first, and without
+      // this override the sheet silently rendered behind the still-open Dialog. A sheet
+      // should always be able to layer above a Dialog, so bump it above `modal` globally
+      // rather than special-casing just the receipt sheet.
+      sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}
       PaperProps={{
         sx: {
           maxWidth: maxWidth ?? 560,
