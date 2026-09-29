@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Chip, List, ListItemButton, ListItemIcon, ListItemText, Paper, Stack, Typography } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { formatMoney } from '../../lib/supabase'
-import { VariantWithContext, formatSize } from '../../types'
+import { VariantWithContext, variantSizeText } from '../../types'
 import { chipUnselectedBg, stockCellColor } from '../../theme'
 import BottomSheet from '../common/BottomSheet'
 import { CheckIcon, ChevronRightIcon, InventoryIcon } from '../icons'
@@ -141,11 +141,17 @@ export default function ProductTypeSizePicker({
 
   const sizeOptions = useMemo(() => {
     if (!pickTypeId) return []
-    return variants.filter((v) => v.type_id === pickTypeId).sort((a, b) => a.size - b.size)
+    const forType = variants.filter((v) => v.type_id === pickTypeId)
+    // 'freetext'-mode variants have no natural numeric order — leave them in the order
+    // `variants` already provides (creation order, per fetchActiveVariants). Only
+    // 'dropdown'-mode types get sorted by size value.
+    if (forType[0]?.size_mode === 'freetext') return forType
+    return forType.sort((a, b) => (a.size ?? 0) - (b.size ?? 0))
   }, [variants, pickTypeId])
 
   // A type whose only variant is size 0 has no meaningful size dimension at all — skip
   // the size step for it entirely rather than making the user pick a single option.
+  // ('freetext'-mode variants have size === null, never 0, so this never fires for them.)
   const isSizelessType = sizeOptions.length > 0 && sizeOptions.every((v) => v.size === 0)
 
   const selected = useMemo(() => sizeOptions.find((v) => v.id === pickVariantId) ?? null, [sizeOptions, pickVariantId])
@@ -316,7 +322,7 @@ export default function ProductTypeSizePicker({
                       bgcolor: isPicked || cartQty > 0 ? 'rgba(201,122,43,0.1)' : 'background.paper'
                     }}
                   >
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{formatSize(v.size)}</Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{variantSizeText(v)}</Typography>
                     <Typography variant="mono" sx={{ fontSize: '0.65rem', opacity: 0.75, display: 'block' }}>
                       {formatMoney(v.unit_price)}
                     </Typography>

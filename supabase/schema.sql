@@ -30,6 +30,12 @@ create table product_types (
     -- Admin-editable (Catalog > Edit type). Applied to a sale line as
     -- default_discount * qty only when the cashier clicks "Apply discount" on New Sale —
     -- never automatic, and never a per-sale override of this value.
+  size_mode         text not null default 'dropdown' check (size_mode in ('dropdown', 'freetext')),
+    -- 'dropdown' (default): variants pick a size from the shared `sizes` list, as below.
+    -- 'freetext': variants type a custom label instead (see variants.size_label) — for
+    -- types that don't fit a numeric-inches size (see migration_012). Decided once in
+    -- Catalog > Edit type; the app locks this once the type has any variants rather than
+    -- letting the two modes mix within one type.
   created_at        timestamptz not null default now(),
   unique (product_id, type_name)
 );
@@ -51,7 +57,8 @@ select generate_series(1.5::numeric, 17::numeric, 0.5::numeric);
 create table variants (
   id             uuid primary key default gen_random_uuid(),
   type_id        uuid not null references product_types(id) on delete restrict,
-  size_id        uuid not null references sizes(id) on delete restrict,
+  size_id        uuid references sizes(id) on delete restrict,        -- set for 'dropdown'-mode types
+  size_label     text,                                                -- set for 'freetext'-mode types
   unit_price     integer not null check (unit_price >= 0),   -- stored in paise (INR smallest unit)
   current_stock  integer not null default 0, -- CACHED value only. Source of truth = stock_movements ledger.
   active         boolean not null default true,
@@ -59,7 +66,14 @@ create table variants (
                                                    -- default; re-adding the same type+size revives this row
                                                    -- instead of failing the unique constraint below
   created_at     timestamptz not null default now(),
-  unique (type_id, size_id)
+  unique (type_id, size_id),
+  unique (type_id, size_label), -- both constraints rely on Postgres treating each NULL as
+    -- distinct, so 'dropdown' rows (size_label always NULL) and 'freetext' rows (size_id
+    -- always NULL) never collide with each other under either constraint
+  check (
+    (size_id is not null and size_label is null)
+    or (size_id is null and size_label is not null and length(trim(size_label)) > 0)
+  )
 );
 
 create index idx_product_types_product on product_types(product_id);
@@ -424,10 +438,12 @@ select
   pt.type_name,
   s.value as size,
   v.current_stock,
-  v.unit_price
+  v.unit_price,
+  v.size_label
 from variants v
 join product_types pt on pt.id = v.type_id
-join sizes s on s.id = v.size_id
+left join sizes s on s.id = v.size_id -- left, not inner: a 'freetext'-mode variant has no
+                                        -- sizes row at all (size_id is null for it)
 join products p on p.id = pt.product_id
 where v.current_stock < (select low_stock_threshold from settings where id = 1)
   and v.active = true

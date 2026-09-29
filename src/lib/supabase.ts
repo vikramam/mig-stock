@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { VariantWithContext } from '../types'
+import { VariantWithContext, SizeMode } from '../types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -28,7 +28,8 @@ export function parseRupeesToPaise(input: string): number {
 interface VariantContextRow {
   id: string
   type_id: string
-  size_id: string
+  size_id: string | null
+  size_label: string | null
   unit_price: number
   current_stock: number
   active: boolean
@@ -37,22 +38,27 @@ interface VariantContextRow {
     type_name: string
     product_id: string
     default_discount: number
+    size_mode: SizeMode
     products: { name: string } | null
   } | null
 }
 
 // Fetches active variants flattened with their product/type/size context — used
 // anywhere a cashier needs to search variants by product/type/size (Add stock, New sale).
+// Ordered by created_at first so that, after the stable product/type name sort below,
+// variants within the same type keep their creation order — the display order the size
+// grid uses for 'freetext'-mode types (which have no natural numeric order to sort by).
 export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[]; error: string | null }> {
   const { data, error } = await supabase
     .from('variants')
     .select(
-      'id, type_id, size_id, unit_price, current_stock, active, sizes(value), product_types!inner(type_name, product_id, default_discount, active, products!inner(name, active))'
+      'id, type_id, size_id, size_label, unit_price, current_stock, active, sizes(value), product_types!inner(type_name, product_id, default_discount, size_mode, active, products!inner(name, active))'
     )
     .eq('active', true)
     .eq('is_deleted', false)
     .eq('product_types.active', true)
     .eq('product_types.products.active', true)
+    .order('created_at', { ascending: true })
 
   if (error) return { data: [], error: error.message }
 
@@ -62,11 +68,13 @@ export async function fetchActiveVariants(): Promise<{ data: VariantWithContext[
       id: v.id,
       type_id: v.type_id,
       size_id: v.size_id,
-      size: v.sizes?.value ?? 0,
+      size: v.sizes?.value ?? null,
+      size_label: v.size_label,
       unit_price: v.unit_price,
       current_stock: v.current_stock,
       active: v.active,
       type_name: v.product_types!.type_name,
+      size_mode: v.product_types!.size_mode,
       product_id: v.product_types!.product_id,
       product_name: v.product_types!.products?.name ?? 'Unknown product',
       default_discount: v.product_types!.default_discount

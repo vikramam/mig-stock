@@ -1,16 +1,31 @@
 import { useEffect, useState } from 'react'
-import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Alert, Stack } from '@mui/material'
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Alert,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from '@mui/material'
 import { parseRupeesToPaise } from '../../lib/supabase'
+import { SizeMode } from '../../types'
 
 export interface TypeDialogValues {
   type_name: string
   default_discount: number // paise, per unit
+  size_mode: SizeMode
 }
 
 export default function TypeDialog({
   open,
   productName,
   initial,
+  hasVariants,
   saving,
   error,
   onClose,
@@ -19,6 +34,9 @@ export default function TypeDialog({
   open: boolean
   productName: string
   initial?: TypeDialogValues
+  /** True once this type has any variants — the app locks size_mode at that point rather
+   *  than letting a type's variants end up split across both modes. */
+  hasVariants: boolean
   saving: boolean
   error: string | null
   onClose: () => void
@@ -26,11 +44,13 @@ export default function TypeDialog({
 }) {
   const [typeName, setTypeName] = useState(initial?.type_name ?? '')
   const [discount, setDiscount] = useState(initial ? String(initial.default_discount / 100) : '')
+  const [sizeMode, setSizeMode] = useState<SizeMode>(initial?.size_mode ?? 'dropdown')
 
   useEffect(() => {
     if (open) {
       setTypeName(initial?.type_name ?? '')
       setDiscount(initial ? String(initial.default_discount / 100) : '')
+      setSizeMode(initial?.size_mode ?? 'dropdown')
     }
   }, [open, initial])
 
@@ -50,6 +70,24 @@ export default function TypeDialog({
             autoFocus
             fullWidth
           />
+          <Stack spacing={0.5}>
+            <ToggleButtonGroup
+              exclusive
+              fullWidth
+              size="small"
+              value={sizeMode}
+              onChange={(_, value: SizeMode | null) => value && setSizeMode(value)}
+              disabled={hasVariants}
+            >
+              <ToggleButton value="dropdown">Size list</ToggleButton>
+              <ToggleButton value="freetext">Custom labels</ToggleButton>
+            </ToggleButtonGroup>
+            <Typography variant="caption" color="text.secondary">
+              {hasVariants
+                ? 'Locked once a type has variants — delete them first to change this.'
+                : "Whether variants under this type pick a size from the list, or type a custom label (for sizes that don't fit inches)."}
+            </Typography>
+          </Stack>
           <TextField
             placeholder="Default discount (Rs., per unit)"
             type="number"
@@ -69,7 +107,8 @@ export default function TypeDialog({
           onClick={() =>
             onSave({
               type_name: typeName.trim(),
-              default_discount: discount.trim() ? parseRupeesToPaise(discount) : 0
+              default_discount: discount.trim() ? parseRupeesToPaise(discount) : 0,
+              size_mode: sizeMode
             })
           }
         >

@@ -401,7 +401,7 @@ export default function NewSale() {
                     {v.product_name} · {v.type_name}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    {v.size !== 0 ? formatSize(v.size) : ' '}
+                    {v.size_label ?? (v.size !== 0 ? formatSize(v.size ?? 0) : ' ')}
                   </Typography>
                   <Typography variant="mono" sx={{ fontSize: '0.7rem', opacity: 0.75, display: 'block' }}>
                     {formatMoney(v.unit_price)}
@@ -461,7 +461,9 @@ export default function NewSale() {
                       {line.variant.product_name} · {line.variant.type_name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {line.variant.size !== 0 && `Size ${formatSize(line.variant.size)} · `}
+                      {line.variant.size_label
+                        ? `${line.variant.size_label} · `
+                        : line.variant.size !== 0 && `Size ${formatSize(line.variant.size ?? 0)} · `}
                       {formatMoney(line.variant.unit_price)} each
                     </Typography>
                     {line.qty > line.variant.current_stock && (
@@ -516,7 +518,9 @@ export default function NewSale() {
                         </Typography>
                       )}
                     </TableCell>
-                    <TableCell>{line.variant.size === 0 ? '' : formatSize(line.variant.size)}</TableCell>
+                    <TableCell>
+                      {line.variant.size_label ?? (line.variant.size === 0 ? '' : formatSize(line.variant.size ?? 0))}
+                    </TableCell>
                     <TableCell align="right">
                       <Typography variant="mono">{formatMoney(line.variant.unit_price)}</Typography>
                     </TableCell>

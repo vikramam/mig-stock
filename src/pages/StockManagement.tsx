@@ -22,7 +22,7 @@ import EditIcon from '@mui/icons-material/EditSharp'
 import { AddIcon, DeleteIcon, InventoryIcon, ChevronRightIcon, BackIcon as ArrowBackIcon } from '../components/icons'
 import { supabase, formatMoney } from '../lib/supabase'
 import { listRowSx } from '../theme'
-import { Product, ProductType, Variant, Size, formatSize } from '../types'
+import { Product, ProductType, Variant, Size, SizeMode, variantSizeText } from '../types'
 import ProductDialog from '../components/stock/ProductDialog'
 import TypeDialog from '../components/stock/TypeDialog'
 import VariantDialog from '../components/stock/VariantDialog'
@@ -68,6 +68,7 @@ export default function StockManagement() {
     productId?: string
     productName?: string
     editing?: ProductType
+    hasVariants?: boolean
   }>({ open: false })
   const [variantDialog, setVariantDialog] = useState<{
     open: boolean
@@ -154,7 +155,7 @@ export default function StockManagement() {
   }
 
   // ---------- Product type ----------
-  async function saveType(values: { type_name: string; default_discount: number }) {
+  async function saveType(values: { type_name: string; default_discount: number; size_mode: SizeMode }) {
     setSaving(true)
     setDialogError(null)
     const { editing, productId } = typeDialog
@@ -181,19 +182,27 @@ export default function StockManagement() {
   }
 
   // ---------- Variant ----------
-  async function saveVariant(values: { size_id: string; unitPricePaise: number; openingStockQty: number }) {
+  async function saveVariant(values: {
+    size_id: string | null
+    size_label: string | null
+    unitPricePaise: number
+    openingStockQty: number
+  }) {
     setSaving(true)
     setDialogError(null)
     const { editing, typeId } = variantDialog
+    const duplicateMessage = values.size_id
+      ? 'This type already has a variant with that size.'
+      : 'This type already has a variant with that label.'
 
     if (editing) {
       const { error } = await supabase
         .from('variants')
-        .update({ size_id: values.size_id, unit_price: values.unitPricePaise })
+        .update({ size_id: values.size_id, size_label: values.size_label, unit_price: values.unitPricePaise })
         .eq('id', editing.id)
       setSaving(false)
       if (error) {
-        setDialogError(isUniqueViolation(error) ? 'This type already has a variant with that size.' : error.message)
+        setDialogError(isUniqueViolation(error) ? duplicateMessage : error.message)
         return
       }
       setVariantDialog({ open: false })
@@ -202,15 +211,13 @@ export default function StockManagement() {
       return
     }
 
-    // The unique (type_id, size_id) constraint means re-adding a size that was previously
-    // soft-deleted would otherwise fail as a duplicate — check for that case first and
-    // revive the existing row (with the newly entered price) instead of inserting.
-    const { data: existingRows, error: lookupError } = await supabase
-      .from('variants')
-      .select('id, is_deleted')
-      .eq('type_id', typeId)
-      .eq('size_id', values.size_id)
-      .limit(1)
+    // The unique (type_id, size_id)/(type_id, size_label) constraints mean re-adding a
+    // size or label that was previously soft-deleted would otherwise fail as a duplicate
+    // — check for that case first and revive the existing row (with the newly entered
+    // price) instead of inserting.
+    let lookupQuery = supabase.from('variants').select('id, is_deleted').eq('type_id', typeId).limit(1)
+    lookupQuery = values.size_id ? lookupQuery.eq('size_id', values.size_id) : lookupQuery.eq('size_label', values.size_label)
+    const { data: existingRows, error: lookupError } = await lookupQuery
 
     if (lookupError) {
       setSaving(false)
@@ -221,7 +228,7 @@ export default function StockManagement() {
     const existing = existingRows?.[0] as { id: string; is_deleted: boolean } | undefined
     if (existing && !existing.is_deleted) {
       setSaving(false)
-      setDialogError('This type already has a variant with that size.')
+      setDialogError(duplicateMessage)
       return
     }
 
@@ -242,13 +249,13 @@ export default function StockManagement() {
     } else {
       const { data: inserted, error } = await supabase
         .from('variants')
-        .insert({ type_id: typeId, size_id: values.size_id, unit_price: values.unitPricePaise })
+        .insert({ type_id: typeId, size_id: values.size_id, size_label: values.size_label, unit_price: values.unitPricePaise })
         .select()
         .single()
 
       if (error) {
         setSaving(false)
-        setDialogError(isUniqueViolation(error) ? 'This type already has a variant with that size.' : error.message)
+        setDialogError(isUniqueViolation(error) ? duplicateMessage : error.message)
         return
       }
       variantId = inserted.id
@@ -316,6 +323,14 @@ export default function StockManagement() {
       })
     : []
   const selectedTypeLabel = selectedProduct && selectedType ? `${selectedProduct.name} / ${selectedType.type_name}` : ''
+  // Existing (non-deleted, other-than-the-one-being-edited) size labels under the
+  // selected type — VariantDialog's inline duplicate check for 'freetext'-mode types.
+  const existingLabels = selectedType
+    ? selectedType.variants
+        .filter((v) => !v.is_deleted && v.id !== variantDialog.editing?.id)
+        .map((v) => (v.size_label ?? '').trim().toLowerCase())
+        .filter(Boolean)
+    : []
 
   if (loading) {
     return (
@@ -394,7 +409,13 @@ export default function StockManagement() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() =>
-                setTypeDialog({ open: true, productId: selectedProduct.id, productName: selectedProduct.name, editing: undefined })
+                setTypeDialog({
+                  open: true,
+                  productId: selectedProduct.id,
+                  productName: selectedProduct.name,
+                  editing: undefined,
+                  hasVariants: false
+                })
               }
             >
               Add type
@@ -516,7 +537,14 @@ export default function StockManagement() {
                 <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                   <IconButton
                     size="small"
-                    onClick={() => setTypeDialog({ open: true, productName: selectedProduct.name, editing: type })}
+                    onClick={() =>
+                      setTypeDialog({
+                        open: true,
+                        productName: selectedProduct.name,
+                        editing: type,
+                        hasVariants: type.variants.length > 0
+                      })
+                    }
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -545,7 +573,7 @@ export default function StockManagement() {
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Stack direction="row" alignItems="center" gap={0.75}>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      {formatSize(variant.sizes?.value ?? 0)}
+                      {variantSizeText({ size: variant.sizes?.value ?? null, size_label: variant.size_label })}
                     </Typography>
                     {variant.is_deleted && <Chip size="small" label="Deleted" />}
                   </Stack>
@@ -612,9 +640,14 @@ export default function StockManagement() {
         productName={typeDialog.productName ?? ''}
         initial={
           typeDialog.editing
-            ? { type_name: typeDialog.editing.type_name, default_discount: typeDialog.editing.default_discount }
+            ? {
+                type_name: typeDialog.editing.type_name,
+                default_discount: typeDialog.editing.default_discount,
+                size_mode: typeDialog.editing.size_mode
+              }
             : undefined
         }
+        hasVariants={typeDialog.hasVariants ?? false}
         saving={saving}
         error={dialogError}
         onClose={() => {
@@ -627,10 +660,16 @@ export default function StockManagement() {
       <VariantDialog
         open={variantDialog.open}
         typeLabel={variantDialog.typeLabel ?? ''}
+        sizeMode={selectedType?.size_mode ?? 'dropdown'}
         sizes={sizes}
+        existingLabels={existingLabels}
         initial={
           variantDialog.editing
-            ? { size_id: variantDialog.editing.size_id, unit_price: variantDialog.editing.unit_price }
+            ? {
+                size_id: variantDialog.editing.size_id,
+                size_label: variantDialog.editing.size_label,
+                unit_price: variantDialog.editing.unit_price
+              }
             : undefined
         }
         saving={saving}
@@ -646,7 +685,12 @@ export default function StockManagement() {
         <DialogTitle>Delete variant?</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
-            {deleteVariantTarget && formatSize(deleteVariantTarget.variant.sizes?.value ?? 0)} of{' '}
+            {deleteVariantTarget &&
+              variantSizeText({
+                size: deleteVariantTarget.variant.sizes?.value ?? null,
+                size_label: deleteVariantTarget.variant.size_label
+              })}{' '}
+            of{' '}
             {deleteVariantTarget?.typeLabel} will be hidden from the catalog, New Sale, and Manage Stock — its stock and
             sales history are kept. Re-add the same size later via "Add variant" to bring it back with an updated price.
           </Typography>

@@ -175,7 +175,7 @@ export default function LowStock() {
                   {row.product_name} · {row.type_name}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Size {formatSize(row.size)}
+                  {row.size_label ?? `Size ${formatSize(row.size ?? 0)}`}
                 </Typography>
               </Box>
               <Stack direction="row" alignItems="center" gap={2} sx={{ flexShrink: 0 }}>

@@ -146,7 +146,7 @@ export default function Layout({ children }: PropsWithChildren) {
             flex: 1,
             p: { xs: 2, md: 4 },
             pb: {
-              xs: hideBottomNav ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(64px + env(safe-area-inset-bottom))',
+              xs: hideBottomNav ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(72px + env(safe-area-inset-bottom))',
               md: 4
             },
             maxWidth: 1160,
@@ -168,7 +168,7 @@ export default function Layout({ children }: PropsWithChildren) {
             left: 0,
             right: 0,
             height: 'auto',
-            pb: 'env(safe-area-inset-bottom)',
+            pb: 'calc(env(safe-area-inset-bottom) + 8px)',
             boxShadow: '0 -1px 2px rgba(0,0,0,0.15), 0 -2px 8px rgba(0,0,0,0.2)',
             zIndex: (t) => t.zIndex.appBar
           }}

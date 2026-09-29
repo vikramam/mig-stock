@@ -415,6 +415,9 @@ export function getTheme(mode: PaletteMode) {
             minWidth: 0,
             paddingTop: 10,
             color: t.bottomNavIconColor,
+            '& .MuiSvgIcon-root': {
+              fontSize: '1.65rem' // slightly above MUI's default 1.5rem/24px
+            },
             '&.Mui-selected': {
               color: theme.palette.primary.main
             },

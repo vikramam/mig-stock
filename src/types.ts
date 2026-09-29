@@ -5,12 +5,17 @@ export interface Product {
   active: boolean
 }
 
+export type SizeMode = 'dropdown' | 'freetext'
+
 export interface ProductType {
   id: string
   product_id: string
   type_name: string
   active: boolean
   default_discount: number // paise, per unit — applied via "Apply discount" on New Sale
+  size_mode: SizeMode // 'dropdown': variants pick from `sizes`. 'freetext': variants type
+    // a custom label (variants.size_label) instead — for types that don't fit a
+    // numeric-inches size. Locked once the type has any variants (app-enforced).
 }
 
 export interface Size {
@@ -27,7 +32,8 @@ export function formatSize(value: number): string {
 export interface Variant {
   id: string
   type_id: string
-  size_id: string
+  size_id: string | null // set for 'dropdown'-mode types
+  size_label: string | null // set for 'freetext'-mode types — exactly one of the two is set
   unit_price: number // paise
   current_stock: number
   active: boolean
@@ -38,7 +44,8 @@ export interface LowStockRow {
   variant_id: string
   product_name: string
   type_name: string
-  size: number
+  size: number | null
+  size_label: string | null
   current_stock: number
   unit_price: number
 }
@@ -91,23 +98,34 @@ export interface Payment {
 export interface VariantWithContext {
   id: string
   type_id: string
-  size_id: string
-  size: number // resolved from sizes.value
+  size_id: string | null
+  size: number | null // resolved from sizes.value — null for a 'freetext'-mode variant
+  size_label: string | null // resolved from variants.size_label — set only for 'freetext'-mode
   unit_price: number // paise
   current_stock: number
   active: boolean
   type_name: string
+  size_mode: SizeMode // resolved from the type
   product_id: string
   product_name: string
   default_discount: number // paise, per unit — resolved from the type
 }
 
-// Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp / 2""
-// Also used as the frozen item_snapshot on sale_items. Size 0 means "sizeless" (the type
-// has no meaningful size dimension) — omit the size segment entirely rather than showing
-// a nonsensical "/ 0"".
+// The size portion of a variant's display text — the custom label for a 'freetext'-mode
+// variant, else the formatted numeric size. Callers that need to special-case "no size
+// dimension at all" (a 'dropdown'-mode sizeless type) still check `size === 0` themselves.
+export function variantSizeText(v: Pick<VariantWithContext, 'size' | 'size_label'>): string {
+  return v.size_label ?? formatSize(v.size ?? 0)
+}
+
+// Human-readable label for a variant, e.g. "Clamp · Cruiser Clamp / 2"" or, for a
+// 'freetext'-mode variant, "Clamp · Rope / Extra thick". Also used as the frozen
+// item_snapshot on sale_items. Size 0 (dropdown mode only) means "sizeless" (the type has
+// no meaningful size dimension) — omit the size segment entirely rather than showing a
+// nonsensical "/ 0"".
 export function formatVariantLabel(v: VariantWithContext): string {
-  return v.size === 0 ? `${v.product_name} · ${v.type_name}` : `${v.product_name} · ${v.type_name} / ${formatSize(v.size)}`
+  if (v.size_label) return `${v.product_name} · ${v.type_name} / ${v.size_label}`
+  return v.size === 0 ? `${v.product_name} · ${v.type_name}` : `${v.product_name} · ${v.type_name} / ${formatSize(v.size ?? 0)}`
 }
 
 export interface Settings {
