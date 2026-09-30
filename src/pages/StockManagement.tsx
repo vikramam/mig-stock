@@ -529,7 +529,7 @@ export default function StockManagement() {
                 >
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
                         {type.type_name}
                       </Typography>
                       {!type.active && <Chip size="small" label="Inactive" />}
@@ -537,7 +537,7 @@ export default function StockManagement() {
                         <Chip size="small" variant="outlined" label={`Discount ${formatMoney(type.default_discount)}/unit`} />
                       )}
                     </Stack>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary">
                       {visibleVariantCount} variant{visibleVariantCount === 1 ? '' : 's'}
                     </Typography>
                   </Box>
@@ -588,7 +588,7 @@ export default function StockManagement() {
                   <Typography
                     variant="mono"
                     color={variant.current_stock <= 0 ? 'error.main' : 'text.secondary'}
-                    sx={{ fontSize: 12 }}
+                    sx={{ fontSize: 14 }}
                   >
                     Stock {variant.current_stock} · {formatMoney(variant.unit_price)}
                   </Typography>

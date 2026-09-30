@@ -40,7 +40,7 @@ const amberGradientHover = 'linear-gradient(135deg, #E8B276 0%, #D3872F 60%, #A8
 // (an app-wide outlined-Chip background would also repaint static status tags like
 // "PAID"/"PENDING", which should stay transparent).
 export function chipUnselectedBg(mode: PaletteMode): string {
-  return mode === 'light' ? 'rgba(15,23,42,0.04)' : 'rgba(255,255,255,0.04)'
+  return mode === 'light' ? 'rgba(90,74,42,0.05)' : 'rgba(255,255,255,0.04)'
 }
 
 // Shared flat list-row treatment for list-with-chevron drill-down screens (Catalog's
@@ -102,20 +102,26 @@ interface ModeTokens {
 function getModeTokens(mode: PaletteMode): ModeTokens {
   if (mode === 'light') {
     return {
-      background: { default: '#fafafa', paper: '#ffffff' },
-      text: { primary: '#0f172a', secondary: '#64748b' },
-      border: 'rgba(15,23,42,0.08)',
-      borderStrong: 'rgba(15,23,42,0.14)',
+      // "Warm Stone" — a warm paper-toned neutral scale (background, card, border, text)
+      // sits in place of the original zinc/slate scale; the amber primary accent and all
+      // semantic colors (success/warning/error) are untouched. Picked from a follow-up
+      // preview round (see chat history) — option E, alongside a cooler "Powder Blue" and
+      // "Cool Graphite" alternative that weren't chosen.
+      background: { default: '#F5F2EC', paper: '#FFFDF9' },
+      text: { primary: '#241F17', secondary: '#7A7263' },
+      border: '#E7E1D3',
+      borderStrong: '#D9CFB8',
       // "shadow-sm combined with ring" — a crisp 1px ring (via box-shadow, not a real
-      // border) plus a soft, barely-there elevation shadow. No inset top highlight here:
-      // that bevel trick only reads on dark surfaces.
-      cardShadow: '0 0 0 1px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.05), 0 8px 24px rgba(15,23,42,0.05)',
-      popoverShadow: '0 0 0 1px rgba(15,23,42,0.08), 0 4px 16px rgba(15,23,42,0.12)',
-      appBarBg: 'rgba(255,255,255,0.75)',
-      appBarShadow: '0 1px 2px rgba(15,23,42,0.04)',
-      mobileSolidBg: 'rgba(255,255,255,0.96)',
-      bottomNavIconColor: 'rgba(15,23,42,0.55)',
-      dialogBg: 'rgba(255,255,255,0.88)',
+      // border) plus a soft, barely-there elevation shadow, tinted to match the warm
+      // neutrals instead of the old slate tint. No inset top highlight here: that bevel
+      // trick only reads on dark surfaces.
+      cardShadow: '0 0 0 1px rgba(90,74,42,0.10), 0 1px 2px rgba(90,74,42,0.06), 0 8px 24px rgba(90,74,42,0.06)',
+      popoverShadow: '0 0 0 1px rgba(90,74,42,0.10), 0 4px 16px rgba(90,74,42,0.13)',
+      appBarBg: 'rgba(255,253,249,0.75)',
+      appBarShadow: '0 1px 2px rgba(90,74,42,0.05)',
+      mobileSolidBg: 'rgba(255,253,249,0.96)',
+      bottomNavIconColor: 'rgba(36,31,23,0.55)',
+      dialogBg: 'rgba(255,253,249,0.88)',
       bodyBackgroundImage: 'none',
       buttonGlowAlpha: 0.28
     }

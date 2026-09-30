@@ -91,9 +91,9 @@ export default function VariantDialog({
             />
           )}
           <TextField
-            placeholder="Unit price (Rs.)"
+            label="Unit price (Rs.)"
             type="number"
-            inputProps={{ 'aria-label': 'Unit price (Rs.)', step: '0.01', min: 0 }}
+            inputProps={{ step: '0.01', min: 0 }}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             fullWidth
