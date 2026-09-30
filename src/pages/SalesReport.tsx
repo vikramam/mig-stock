@@ -1,17 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   Typography,
   Paper,
-  Grid,
   Stack,
   Chip,
   TextField,
   Alert,
-  Button
+  Button,
+  Tabs,
+  Tab,
+  IconButton
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMoreSharp'
 import ExpandLessIcon from '@mui/icons-material/ExpandLessSharp'
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpwardSharp'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownwardSharp'
 import { FileDownloadIcon as PictureAsPdfIcon } from '../components/icons'
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts'
 import { useTheme } from '@mui/material/styles'
@@ -22,6 +26,12 @@ import { SummaryCardsSkeleton, ChartSkeleton, TableSkeleton } from '../component
 import { Sale, SaleItem } from '../types'
 
 type Preset = 'today' | '7d' | 'month' | 'all' | 'custom'
+type ReportTab = 'overview' | 'customer' | 'product' | 'list'
+type SortDir = 'asc' | 'desc'
+
+// `customers(name)` embed, same pattern AllSales.tsx uses — cheaper than a separate
+// customers fetch + client-side join since PostgREST does it in one round trip.
+type SaleRow = Sale & { customers: { name: string } | null }
 
 const PRESETS: { value: Preset; label: string }[] = [
   { value: 'today', label: 'Today' },
@@ -29,6 +39,13 @@ const PRESETS: { value: Preset; label: string }[] = [
   { value: 'month', label: 'This month' },
   { value: 'all', label: 'All time' },
   { value: 'custom', label: 'Custom' }
+]
+
+const TABS: { value: ReportTab; label: string }[] = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'customer', label: 'By customer' },
+  { value: 'product', label: 'By product' },
+  { value: 'list', label: 'Sales list' }
 ]
 
 // On-screen default for the top-items list — the full top 10 (see `topItems` below) is
@@ -41,6 +58,14 @@ interface ItemAgg {
   label: string
   qty: number
   revenue: number
+}
+
+interface CustomerAgg {
+  key: string
+  name: string
+  saleCount: number
+  totalAmount: number
+  balanceDue: number
 }
 
 function startOfDay(d: Date): Date {
@@ -108,6 +133,34 @@ function aggregateItems(items: SaleItem[]): ItemAgg[] {
   return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue)
 }
 
+function aggregateByCustomer(sales: SaleRow[]): CustomerAgg[] {
+  const map = new Map<string, CustomerAgg>()
+  sales.forEach((s) => {
+    const key = s.customer_id ?? 'walkin'
+    const existing = map.get(key)
+    if (existing) {
+      existing.saleCount += 1
+      existing.totalAmount += s.total
+      existing.balanceDue += s.balance_due
+    } else {
+      map.set(key, {
+        key,
+        name: s.customers?.name ?? 'Walk-in',
+        saleCount: 1,
+        totalAmount: s.total,
+        balanceDue: s.balance_due
+      })
+    }
+  })
+  return Array.from(map.values())
+}
+
+function paymentBadge(sale: Sale): { label: string; color: 'success' | 'warning' | 'error' } {
+  if (sale.status === 'cancelled') return { label: 'CANCELLED', color: 'error' }
+  if (sale.payment_status === 'paid') return { label: 'PAID', color: 'success' }
+  return { label: 'PENDING', color: 'warning' }
+}
+
 function buildTrend(sales: Sale[], from: Date | null, to: Date | null): { label: string; total: number }[] {
   if (sales.length === 0) return []
 
@@ -139,11 +192,12 @@ function waitForNextPaint(): Promise<void> {
 export default function SalesReport() {
   const theme = useTheme()
   const unselectedChipBg = chipUnselectedBg(theme.palette.mode)
+  const [tab, setTab] = useState<ReportTab>('overview')
   const [preset, setPreset] = useState<Preset>('7d')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
 
-  const [sales, setSales] = useState<Sale[]>([])
+  const [sales, setSales] = useState<SaleRow[]>([])
   const [items, setItems] = useState<SaleItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -154,8 +208,10 @@ export default function SalesReport() {
   // COLLAPSED_ITEM_COUNT. All 10 rows are always present in the DOM inside `reportRef` —
   // this only toggles a `display: none` on the extra rows — so `handleExportPdf` can
   // temporarily flip it to true to guarantee the export captures the full top 10 even
-  // when the on-screen view is collapsed.
+  // when the on-screen view is collapsed. Only relevant to the Overview tab.
   const [itemsExpanded, setItemsExpanded] = useState(false)
+  const [customerSortDir, setCustomerSortDir] = useState<SortDir>('desc')
+  const [productSortDir, setProductSortDir] = useState<SortDir>('desc')
   const reportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -180,17 +236,19 @@ export default function SalesReport() {
       // Force the full top-10 list visible for the capture, regardless of the collapsed
       // on-screen state — the PDF must always include all 10 rows, not just the 4 shown
       // by default. Restored in `finally` below so the user's on-screen view is untouched.
-      if (!wasExpanded) {
+      // Only applies to the Overview tab — the other tabs render their full list already.
+      if (tab === 'overview' && !wasExpanded) {
         setItemsExpanded(true)
         await waitForNextPaint()
       }
       const blob = await receiptToPdfBlob(reportRef.current)
       const rangeSlug = presetLabel(preset, fromDate, toDate).toLowerCase().replace(/[^a-z0-9]+/g, '-')
-      downloadBlob(blob, `${companyName}-sales-report-${rangeSlug}.pdf`)
+      const tabSlug = (TABS.find((t) => t.value === tab)?.label ?? tab).toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      downloadBlob(blob, `${companyName}-sales-report-${tabSlug}-${rangeSlug}.pdf`)
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Failed to generate report PDF')
     } finally {
-      if (!wasExpanded) setItemsExpanded(false)
+      if (tab === 'overview' && !wasExpanded) setItemsExpanded(false)
       setExporting(false)
     }
   }
@@ -201,7 +259,11 @@ export default function SalesReport() {
 
     const { from, to } = rangeForPreset(preset, fromDate, toDate)
 
-    let query = supabase.from('sales').select('*').eq('status', 'active').order('created_at', { ascending: true })
+    let query = supabase
+      .from('sales')
+      .select('*, customers(name)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
     if (from) query = query.gte('created_at', from.toISOString())
     if (to) query = query.lte('created_at', to.toISOString())
 
@@ -212,7 +274,7 @@ export default function SalesReport() {
       return
     }
 
-    const salesList = (salesData ?? []) as Sale[]
+    const salesList = (salesData ?? []) as SaleRow[]
     const saleIds = salesList.map((s) => s.id)
 
     let itemsList: SaleItem[] = []
@@ -235,16 +297,53 @@ export default function SalesReport() {
   const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0)
   const totalCollected = sales.reduce((sum, s) => sum + s.amount_paid, 0)
   const totalPending = sales.reduce((sum, s) => sum + s.balance_due, 0)
+  const avgSaleValue = sales.length > 0 ? Math.round(totalRevenue / sales.length) : 0
   const trend = buildTrend(sales, from, to)
   const allItems = aggregateItems(items)
   const topItems = allItems.slice(0, 10)
   const otherItemsCount = allItems.length - topItems.length
+
+  const customerRows = useMemo(() => {
+    const rows = aggregateByCustomer(sales)
+    rows.sort((a, b) => (customerSortDir === 'desc' ? b.totalAmount - a.totalAmount : a.totalAmount - b.totalAmount))
+    return rows
+  }, [sales, customerSortDir])
+
+  const productRows = useMemo(() => {
+    const rows = [...allItems]
+    rows.sort((a, b) => (productSortDir === 'desc' ? b.qty - a.qty : a.qty - b.qty))
+    return rows
+  }, [allItems, productSortDir])
+
+  const itemCountBySale = useMemo(() => {
+    const map = new Map<string, number>()
+    items.forEach((it) => map.set(it.sale_id, (map.get(it.sale_id) ?? 0) + it.qty))
+    return map
+  }, [items])
+
+  const listRows = useMemo(
+    () => [...sales].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [sales]
+  )
 
   return (
     <Box>
       <Typography variant="h4" sx={{ mb: 2 }}>
         Sales report
       </Typography>
+
+      <Tabs
+        value={tab}
+        onChange={(_, v: ReportTab) => setTab(v)}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        sx={{ mb: 2, borderBottom: '1px solid', borderColor: 'divider', minHeight: 40 }}
+      >
+        {TABS.map((t) => (
+          <Tab key={t.value} label={t.label} value={t.value} sx={{ minHeight: 40 }} />
+        ))}
+      </Tabs>
 
       <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Stack direction="row" gap={1.5} flexWrap="wrap" alignItems="center">
@@ -305,7 +404,7 @@ export default function SalesReport() {
 
       {loading && (
         <>
-          <SummaryCardsSkeleton count={4} />
+          <SummaryCardsSkeleton count={5} />
           <ChartSkeleton height={200} />
           <TableSkeleton rows={6} columns={3} />
         </>
@@ -328,95 +427,226 @@ export default function SalesReport() {
           <Box sx={{ mb: 2.5 }}>
             <Typography variant="h5">{companyName}</Typography>
             <Typography variant="body2" color="text.secondary">
-              Sales report — {presetLabel(preset, fromDate, toDate)} — generated{' '}
+              {TABS.find((t) => t.value === tab)?.label} — {presetLabel(preset, fromDate, toDate)} — generated{' '}
               {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </Typography>
           </Box>
 
-          <Grid container spacing={1.5} sx={{ mb: 3 }}>
-            <Grid item xs={6} sm={3}>
-              <SummaryCard label="Revenue" value={formatMoney(totalRevenue)} />
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <SummaryCard label="Sales" value={String(sales.length)} />
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <SummaryCard label="Collected" value={formatMoney(totalCollected)} />
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <SummaryCard label="Pending" value={formatMoney(totalPending)} accent={totalPending > 0} />
-            </Grid>
-          </Grid>
-
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Revenue (Rs.)
-            </Typography>
-            <Box sx={{ height: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="reportTrendFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: theme.palette.text.secondary }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v: number) => [`Rs. ${v.toLocaleString('en-IN')}`, 'Revenue']} />
-                  <Area type="monotone" dataKey="total" stroke={theme.palette.primary.main} strokeWidth={2} fill="url(#reportTrendFill)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Box>
-          </Paper>
-
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
-            <Typography variant="subtitle1">Top selling items</Typography>
-            {topItems.length > COLLAPSED_ITEM_COUNT && (
-              <Button
-                size="small"
-                variant="text"
-                onClick={() => setItemsExpanded((v) => !v)}
-                endIcon={itemsExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              >
-                {itemsExpanded ? 'Show less' : `See all ${topItems.length}`}
-              </Button>
-            )}
-          </Stack>
-
-          <Stack spacing={1}>
-            {/*
-              All 10 top items are always rendered here (never conditionally skipped) so
-              that `reportRef` — the element handleExportPdf hands to receiptToPdfBlob —
-              contains the full list on export. Rows beyond COLLAPSED_ITEM_COUNT are only
-              hidden via `display: none` while collapsed; handleExportPdf flips
-              `itemsExpanded` to true before capturing so nothing is missing from the PDF.
-            */}
-            {topItems.map((item, idx) => (
+          {tab === 'overview' && (
+            <>
               <Box
-                key={item.label}
                 sx={{
-                  ...listRowSx(theme),
-                  display: idx < COLLAPSED_ITEM_COUNT || itemsExpanded ? 'flex' : 'none'
+                  display: 'grid',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
+                  gap: 1.5,
+                  mb: 3
                 }}
               >
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
-                    {item.label}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {item.qty} sold
-                  </Typography>
-                </Box>
-                <Typography variant="mono" sx={{ fontWeight: 700, flexShrink: 0 }}>
-                  {formatMoney(item.revenue)}
-                </Typography>
+                <SummaryCard label="Revenue" value={formatMoney(totalRevenue)} />
+                <SummaryCard label="Sales" value={String(sales.length)} />
+                <SummaryCard label="Avg sale" value={formatMoney(avgSaleValue)} />
+                <SummaryCard label="Collected" value={formatMoney(totalCollected)} />
+                <SummaryCard label="Pending" value={formatMoney(totalPending)} accent={totalPending > 0} />
               </Box>
-            ))}
-          </Stack>
-          {otherItemsCount > 0 && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              +{otherItemsCount} more item{otherItemsCount === 1 ? '' : 's'} not shown.
-            </Typography>
+
+              <Paper sx={{ p: 2, mb: 3 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                  Revenue (Rs.)
+                </Typography>
+                <Box sx={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="reportTrendFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={theme.palette.primary.main} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip formatter={(v: number) => [`Rs. ${v.toLocaleString('en-IN')}`, 'Revenue']} />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke={theme.palette.primary.main}
+                        strokeWidth={2}
+                        fill="url(#reportTrendFill)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Paper>
+
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Typography variant="subtitle1">Top selling items</Typography>
+                {topItems.length > COLLAPSED_ITEM_COUNT && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => setItemsExpanded((v) => !v)}
+                    endIcon={itemsExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  >
+                    {itemsExpanded ? 'Show less' : `See all ${topItems.length}`}
+                  </Button>
+                )}
+              </Stack>
+
+              <Stack spacing={1}>
+                {/*
+                  All 10 top items are always rendered here (never conditionally skipped) so
+                  that `reportRef` — the element handleExportPdf hands to receiptToPdfBlob —
+                  contains the full list on export. Rows beyond COLLAPSED_ITEM_COUNT are only
+                  hidden via `display: none` while collapsed; handleExportPdf flips
+                  `itemsExpanded` to true before capturing so nothing is missing from the PDF.
+                */}
+                {topItems.map((item, idx) => (
+                  <Box
+                    key={item.label}
+                    sx={{
+                      ...listRowSx(theme),
+                      display: idx < COLLAPSED_ITEM_COUNT || itemsExpanded ? 'flex' : 'none'
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                        {item.label}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {item.qty} sold
+                      </Typography>
+                    </Box>
+                    <Typography variant="mono" sx={{ fontWeight: 700, flexShrink: 0 }}>
+                      {formatMoney(item.revenue)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+              {otherItemsCount > 0 && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  +{otherItemsCount} more item{otherItemsCount === 1 ? '' : 's'} not shown.
+                </Typography>
+              )}
+            </>
+          )}
+
+          {tab === 'customer' && (
+            <>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Typography variant="subtitle1">Sales by customer</Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => setCustomerSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  aria-label={customerSortDir === 'asc' ? 'Sort amount ascending' : 'Sort amount descending'}
+                  sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '10px' }}
+                >
+                  {customerSortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
+                </IconButton>
+              </Stack>
+              {customerRows.length === 0 ? (
+                <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
+                  <Typography color="text.secondary">No customer sales in this period.</Typography>
+                </Paper>
+              ) : (
+                <Stack spacing={1}>
+                  {customerRows.map((row) => (
+                    <Box key={row.key} sx={listRowSx(theme)}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                          {row.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {row.saleCount} sale{row.saleCount === 1 ? '' : 's'}
+                          {row.balanceDue > 0 ? ` · Bal ${formatMoney(row.balanceDue)}` : ''}
+                        </Typography>
+                      </Box>
+                      <Typography variant="mono" sx={{ fontWeight: 700, flexShrink: 0 }}>
+                        {formatMoney(row.totalAmount)}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </>
+          )}
+
+          {tab === 'product' && (
+            <>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                <Typography variant="subtitle1">Sales by product</Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => setProductSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  aria-label={productSortDir === 'asc' ? 'Sort quantity ascending' : 'Sort quantity descending'}
+                  sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '10px' }}
+                >
+                  {productSortDir === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />}
+                </IconButton>
+              </Stack>
+              {productRows.length === 0 ? (
+                <Paper sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
+                  <Typography color="text.secondary">No products sold in this period.</Typography>
+                </Paper>
+              ) : (
+                <Stack spacing={1}>
+                  {productRows.map((item) => (
+                    <Box key={item.label} sx={listRowSx(theme)}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                          {item.label}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatMoney(item.revenue)} revenue
+                        </Typography>
+                      </Box>
+                      <Typography variant="mono" sx={{ fontWeight: 700, flexShrink: 0 }}>
+                        {item.qty} sold
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </>
+          )}
+
+          {tab === 'list' && (
+            <>
+              <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
+                Sales list
+              </Typography>
+              <Stack spacing={1}>
+                {listRows.map((sale) => {
+                  const badge = paymentBadge(sale)
+                  const count = itemCountBySale.get(sale.id) ?? 0
+                  return (
+                    <Box key={sale.id} sx={{ ...listRowSx(theme), opacity: sale.status === 'cancelled' ? 0.6 : 1 }}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                          {sale.customers?.name ?? 'Walk-in'} · {sale.receipt_no.replace(/^MIG[_-]/, '')}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(sale.created_at).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })}{' '}
+                          · {count} item{count === 1 ? '' : 's'}
+                        </Typography>
+                      </Box>
+                      <Stack alignItems="flex-end" gap={0.5} sx={{ flexShrink: 0 }}>
+                        <Typography variant="mono" sx={{ fontWeight: 700 }}>
+                          {formatMoney(sale.total)}
+                        </Typography>
+                        <Chip size="small" label={badge.label} color={badge.color} sx={{ fontSize: '0.65rem' }} />
+                      </Stack>
+                    </Box>
+                  )
+                })}
+              </Stack>
+            </>
           )}
         </Box>
       )}

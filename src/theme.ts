@@ -53,7 +53,10 @@ export function listRowSx(theme: ReturnType<typeof createTheme>) {
     justifyContent: 'space-between',
     gap: 1.5,
     p: 1.5,
-    borderRadius: 2,
+    // A literal px value, not the sx system's theme.shape.borderRadius multiplier (which
+    // `borderRadius: 2` would resolve to — 32px, more rounded than even a card/dialog) —
+    // these compact rows read better with a tighter radius, closer to a button's.
+    borderRadius: '10px',
     border: `1px solid ${theme.palette.divider}`,
     bgcolor: 'background.paper',
     transition: microTransition,

@@ -40,16 +40,6 @@ export interface Variant {
   is_deleted: boolean
 }
 
-export interface LowStockRow {
-  variant_id: string
-  product_name: string
-  type_name: string
-  size: number | null
-  size_label: string | null
-  current_stock: number
-  unit_price: number
-}
-
 export interface Customer {
   id: string
   name: string

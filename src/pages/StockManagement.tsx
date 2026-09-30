@@ -476,32 +476,35 @@ export default function StockManagement() {
             </Paper>
           )}
           <Stack spacing={1.25}>
-            {visibleProducts.map((product) => (
-              <Box
-                key={product.id}
-                onClick={() => openTypes(product.id)}
-                sx={{ ...listRowSx(theme), cursor: 'pointer', opacity: product.active ? 1 : 0.6 }}
-              >
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Stack direction="row" alignItems="center" gap={1}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
-                      {product.name}
+            {visibleProducts.map((product) => {
+              const visibleTypeCount = product.product_types.filter((t) => showInactive || t.active).length
+              return (
+                <Box
+                  key={product.id}
+                  onClick={() => openTypes(product.id)}
+                  sx={{ ...listRowSx(theme), cursor: 'pointer', opacity: product.active ? 1 : 0.6 }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack direction="row" alignItems="center" gap={1}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
+                        {product.name}
+                      </Typography>
+                      {!product.active && <Chip size="small" label="Inactive" />}
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {visibleTypeCount} type{visibleTypeCount === 1 ? '' : 's'}
                     </Typography>
-                    {!product.active && <Chip size="small" label="Inactive" />}
+                  </Box>
+                  <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <IconButton size="small" onClick={() => setProductDialog({ open: true, editing: product })}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <Switch size="small" checked={product.active} onChange={() => void toggleProductActive(product)} />
                   </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    {product.product_types.length} type{product.product_types.length === 1 ? '' : 's'}
-                  </Typography>
+                  <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
                 </Box>
-                <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                  <IconButton size="small" onClick={() => setProductDialog({ open: true, editing: product })}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <Switch size="small" checked={product.active} onChange={() => void toggleProductActive(product)} />
-                </Stack>
-                <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
-              </Box>
-            ))}
+              )
+            })}
           </Stack>
         </>
       )}
@@ -514,45 +517,50 @@ export default function StockManagement() {
             </Paper>
           )}
           <Stack spacing={1.25}>
-            {visibleTypes.map((type) => (
-              <Box
-                key={type.id}
-                onClick={() => openVariants(type.id)}
-                sx={{ ...listRowSx(theme), cursor: 'pointer', opacity: type.active ? 1 : 0.6 }}
-              >
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
-                      {type.type_name}
+            {visibleTypes.map((type) => {
+              const visibleVariantCount = type.variants.filter(
+                (v) => (showInactive || v.active) && (showDeletedVariants || !v.is_deleted)
+              ).length
+              return (
+                <Box
+                  key={type.id}
+                  onClick={() => openVariants(type.id)}
+                  sx={{ ...listRowSx(theme), cursor: 'pointer', opacity: type.active ? 1 : 0.6 }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap">
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
+                        {type.type_name}
+                      </Typography>
+                      {!type.active && <Chip size="small" label="Inactive" />}
+                      {type.default_discount > 0 && (
+                        <Chip size="small" variant="outlined" label={`Discount ${formatMoney(type.default_discount)}/unit`} />
+                      )}
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {visibleVariantCount} variant{visibleVariantCount === 1 ? '' : 's'}
                     </Typography>
-                    {!type.active && <Chip size="small" label="Inactive" />}
-                    {type.default_discount > 0 && (
-                      <Chip size="small" variant="outlined" label={`Discount ${formatMoney(type.default_discount)}/unit`} />
-                    )}
+                  </Box>
+                  <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        setTypeDialog({
+                          open: true,
+                          productName: selectedProduct.name,
+                          editing: type,
+                          hasVariants: type.variants.length > 0
+                        })
+                      }
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <Switch size="small" checked={type.active} onChange={() => void toggleTypeActive(type)} />
                   </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    {type.variants.length} variant{type.variants.length === 1 ? '' : 's'}
-                  </Typography>
+                  <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
                 </Box>
-                <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                  <IconButton
-                    size="small"
-                    onClick={() =>
-                      setTypeDialog({
-                        open: true,
-                        productName: selectedProduct.name,
-                        editing: type,
-                        hasVariants: type.variants.length > 0
-                      })
-                    }
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <Switch size="small" checked={type.active} onChange={() => void toggleTypeActive(type)} />
-                </Stack>
-                <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
-              </Box>
-            ))}
+              )
+            })}
           </Stack>
         </>
       )}

@@ -21,7 +21,7 @@ import {
   SellIcon,
   InventoryIcon,
   BarChartIcon,
-  WarningIcon,
+  ClipboardListIcon,
   SettingsIcon,
   LogoutIcon,
   SmartToyIcon,
@@ -40,7 +40,7 @@ const NAV_ITEMS = [
   { label: 'New sale', path: '/sale/new', icon: <SellIcon /> },
   { label: 'Catalog', path: '/catalog', icon: <InventoryIcon /> },
   { label: 'Reports', path: '/reports', icon: <BarChartIcon /> },
-  { label: 'Low stock', path: '/low-stock', icon: <WarningIcon /> }
+  { label: 'Inventory', path: '/low-stock', icon: <ClipboardListIcon /> }
 ]
 
 // New Sale renders its own sticky bottom bar (discount + total + Complete sale) in the
@@ -146,7 +146,7 @@ export default function Layout({ children }: PropsWithChildren) {
             flex: 1,
             p: { xs: 2, md: 4 },
             pb: {
-              xs: hideBottomNav ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(72px + env(safe-area-inset-bottom))',
+              xs: hideBottomNav ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(80px + env(safe-area-inset-bottom))',
               md: 4
             },
             maxWidth: 1160,
@@ -168,7 +168,7 @@ export default function Layout({ children }: PropsWithChildren) {
             left: 0,
             right: 0,
             height: 'auto',
-            pb: 'calc(env(safe-area-inset-bottom) + 8px)',
+            pb: 'calc(env(safe-area-inset-bottom) + 16px)',
             boxShadow: '0 -1px 2px rgba(0,0,0,0.15), 0 -2px 8px rgba(0,0,0,0.2)',
             zIndex: (t) => t.zIndex.appBar
           }}

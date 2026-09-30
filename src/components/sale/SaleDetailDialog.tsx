@@ -341,44 +341,49 @@ export default function SaleDetailDialog({
               )}
             </Stack>
 
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Item</TableCell>
-                  <TableCell align="right">Qty</TableCell>
-                  <TableCell align="right">Price</TableCell>
-                  {hasDiscount && <TableCell align="right">Discount</TableCell>}
-                  <TableCell align="right">Line total</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.item_snapshot}</TableCell>
-                    <TableCell align="right">{item.qty}</TableCell>
-                    <TableCell align="right">
-                      <Typography variant="mono">{formatMoney(item.unit_price_at_sale)}</Typography>
-                    </TableCell>
-                    {hasDiscount && (
-                      <TableCell align="right">
-                        {item.discount_amount > 0 ? (
-                          <Typography variant="mono" color="success.main">
-                            −{formatMoney(item.discount_amount)}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            —
-                          </Typography>
-                        )}
-                      </TableCell>
-                    )}
-                    <TableCell align="right">
-                      <Typography variant="mono">{formatMoney(item.line_total)}</Typography>
-                    </TableCell>
+            {/* Horizontal scroll rather than clipping — on a narrow phone width the
+                Discount/Line total columns don't all fit, and this dialog goes
+                full-screen below `sm` so there's no wider container to fall back to. */}
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Item</TableCell>
+                    <TableCell align="right">Qty</TableCell>
+                    <TableCell align="right">Price</TableCell>
+                    {hasDiscount && <TableCell align="right">Disc</TableCell>}
+                    <TableCell align="right">Line total</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.item_snapshot}</TableCell>
+                      <TableCell align="right">{item.qty}</TableCell>
+                      <TableCell align="right">
+                        <Typography variant="mono">{formatMoney(item.unit_price_at_sale)}</Typography>
+                      </TableCell>
+                      {hasDiscount && (
+                        <TableCell align="right">
+                          {item.discount_amount > 0 ? (
+                            <Typography variant="mono" color="success.main">
+                              −{formatMoney(item.discount_amount)}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
+                      )}
+                      <TableCell align="right">
+                        <Typography variant="mono">{formatMoney(item.line_total)}</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
 
             <Divider />
 
@@ -481,59 +486,65 @@ export default function SaleDetailDialog({
                     </ActionSection>
                   )}
 
-                  {sale.status === 'active' && !confirmingCancel && (
-                    <ActionSection icon={<EditIcon fontSize="small" />} label="Edit sale">
-                      {!confirmingEdit ? (
-                        <Button variant="outlined" onClick={() => setConfirmingEdit(true)} sx={{ alignSelf: 'flex-start' }}>
-                          Edit sale
-                        </Button>
-                      ) : (
-                        <Stack spacing={1.5}>
-                          <Alert severity="info">
-                            This cancels the current sale (reversing its stock) and reopens New Sale with the same customer and
-                            items, so you can change quantities or items and complete it as a fresh sale.
-                          </Alert>
-                          {editError && <Alert severity="error">{editError}</Alert>}
-                          <Stack direction="row" gap={1}>
-                            <Button onClick={() => setConfirmingEdit(false)}>Back</Button>
-                            <Button variant="contained" disabled={editing} onClick={() => void handleEditSale()}>
-                              Cancel & edit
-                            </Button>
-                          </Stack>
-                        </Stack>
-                      )}
-                    </ActionSection>
+                  {sale.status === 'active' && !confirmingEdit && !confirmingCancel && (
+                    <Stack direction="row" gap={1.5}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<EditIcon fontSize="small" />}
+                        onClick={() => setConfirmingEdit(true)}
+                        fullWidth
+                      >
+                        Edit Sale
+                      </Button>
+                      <Button
+                        color="error"
+                        variant="outlined"
+                        startIcon={<CancelIcon fontSize="small" />}
+                        onClick={() => setConfirmingCancel(true)}
+                        fullWidth
+                      >
+                        Cancel Sale
+                      </Button>
+                    </Stack>
                   )}
 
-                  {sale.status === 'active' && !confirmingEdit && (
-                    <ActionSection icon={<CancelIcon fontSize="small" />} label="Cancel sale" severity="warning">
-                      {!confirmingCancel ? (
-                        <Button color="error" variant="outlined" onClick={() => setConfirmingCancel(true)} sx={{ alignSelf: 'flex-start' }}>
-                          Cancel sale
+                  {sale.status === 'active' && confirmingEdit && (
+                    <Stack spacing={1.5}>
+                      <Alert severity="info">
+                        This cancels the current sale (reversing its stock) and reopens New Sale with the same customer and
+                        items, so you can change quantities or items and complete it as a fresh sale.
+                      </Alert>
+                      {editError && <Alert severity="error">{editError}</Alert>}
+                      <Stack direction="row" gap={1}>
+                        <Button onClick={() => setConfirmingEdit(false)}>Back</Button>
+                        <Button variant="contained" disabled={editing} onClick={() => void handleEditSale()}>
+                          Cancel & edit
                         </Button>
-                      ) : (
-                        <Stack spacing={1.5}>
-                          <Alert severity="warning">
-                            This reverses all stock movements from this sale and marks it cancelled. This cannot be undone.
-                          </Alert>
-                          {cancelError && <Alert severity="error">{cancelError}</Alert>}
-                          <TextField
-                            placeholder="Cancelled by (optional)"
-                            size="small"
-                            inputProps={{ 'aria-label': 'Cancelled by (optional)' }}
-                            value={cancelledBy}
-                            onChange={(e) => setCancelledBy(e.target.value)}
-                            fullWidth
-                          />
-                          <Stack direction="row" gap={1}>
-                            <Button onClick={() => setConfirmingCancel(false)}>Back</Button>
-                            <Button color="error" variant="contained" disabled={cancelling} onClick={() => void handleCancelSale()}>
-                              Confirm cancellation
-                            </Button>
-                          </Stack>
-                        </Stack>
-                      )}
-                    </ActionSection>
+                      </Stack>
+                    </Stack>
+                  )}
+
+                  {sale.status === 'active' && confirmingCancel && (
+                    <Stack spacing={1.5}>
+                      <Alert severity="warning">
+                        This reverses all stock movements from this sale and marks it cancelled. This cannot be undone.
+                      </Alert>
+                      {cancelError && <Alert severity="error">{cancelError}</Alert>}
+                      <TextField
+                        placeholder="Cancelled by (optional)"
+                        size="small"
+                        inputProps={{ 'aria-label': 'Cancelled by (optional)' }}
+                        value={cancelledBy}
+                        onChange={(e) => setCancelledBy(e.target.value)}
+                        fullWidth
+                      />
+                      <Stack direction="row" gap={1}>
+                        <Button onClick={() => setConfirmingCancel(false)}>Back</Button>
+                        <Button color="error" variant="contained" disabled={cancelling} onClick={() => void handleCancelSale()}>
+                          Confirm cancellation
+                        </Button>
+                      </Stack>
+                    </Stack>
                   )}
 
                   {sale.status === 'cancelled' && (

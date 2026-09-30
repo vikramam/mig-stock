@@ -119,12 +119,12 @@ create index idx_customers_name on customers(name);
 -- 4. SALES, SALE_ITEMS, PAYMENTS
 -- ============================================================
 
--- Sequential receipt numbers, e.g. MIG_INV-001
+-- Sequential receipt numbers, e.g. MIG-INV-001
 create sequence receipt_seq start 1;
 
 create table sales (
   id              uuid primary key default gen_random_uuid(),
-  receipt_no      text not null unique default ('MIG_INV-' || lpad(nextval('receipt_seq')::text, 3, '0')),
+  receipt_no      text not null unique default ('MIG-INV-' || lpad(nextval('receipt_seq')::text, 3, '0')),
   customer_id     uuid references customers(id) on delete set null,  -- null = anonymous sale
   total           integer not null default 0,        -- paise, sum of sale_items.line_total
   amount_paid     integer not null default 0,         -- CACHED, source of truth = sum(payments.amount)

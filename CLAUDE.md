@@ -55,9 +55,11 @@ Overselling is ALLOWED — stock can go negative. Do not add validation blocking
 - `sale_items` snapshots `item_snapshot` (name/type/size), `unit_price_at_sale`, and
   `discount_amount` at the time of sale — so editing a product/type later never rewrites
   an old receipt.
-- **Receipt numbers**: sequential, format `MIG_INV-001`, `MIG_INV-002`, ... generated via
+- **Receipt numbers**: sequential, format `MIG-INV-001`, `MIG-INV-002`, ... generated via
   a Postgres sequence (`receipt_seq`) in the `sales` table default. "MIG" is the company's
-  shorthand name.
+  shorthand name. Was `MIG_INV-XXX` (underscore) until `migration_013_receipt_no_format.sql`
+  renamed the prefix and backfilled existing rows — if you see old `MIG_INV-` references
+  anywhere else, they're leftover from before that change.
 
 ## Discounts (per product type, admin-editable default — not per-sale)
 
@@ -113,7 +115,7 @@ When a sale is created, the app must be able to generate a shareable receipt:
 - Rendered as both a **PNG image** and a **PDF**.
 - Must include: company name (from `settings.company_name`) at the top, the product
   image (from `products.image_url`, looked up via variant -> type -> product), the
-  receipt number (`MIG_INV-XXX`), line items, total, payment status/balance.
+  receipt number (`MIG-INV-XXX`), line items, total, payment status/balance.
 - Must be shareable directly to **WhatsApp** — via the native `navigator.share()` Web
   Share API passing the generated image/PDF as a file. Do NOT build a WhatsApp Business
   API integration — that's unnecessary complexity for this use case.

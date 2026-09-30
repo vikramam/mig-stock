@@ -31,7 +31,12 @@ interface CatalogExportRow {
   name: string
   product_types: {
     type_name: string
-    variants: { unit_price: number; current_stock: number; sizes: { value: number } | null }[]
+    variants: {
+      unit_price: number
+      current_stock: number
+      size_label: string | null
+      sizes: { value: number } | null
+    }[]
   }[]
 }
 
@@ -121,7 +126,7 @@ export default function Settings() {
 
     const { data, error } = await supabase
       .from('products')
-      .select('name, product_types(type_name, variants(unit_price, current_stock, sizes(value)))')
+      .select('name, product_types(type_name, variants(unit_price, current_stock, size_label, sizes(value)))')
       .order('name', { ascending: true })
 
     setCatalogExportBusy(false)
@@ -136,6 +141,7 @@ export default function Settings() {
           Product: product.name,
           Type: type.type_name,
           'Size (in)': variant.sizes?.value ?? '',
+          'Size label': variant.size_label ?? '',
           'Price (Rs.)': variant.unit_price / 100,
           'Opening stock': variant.current_stock
         }))

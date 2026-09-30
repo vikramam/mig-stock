@@ -43,8 +43,11 @@ const RECEIPT_DISCOUNT = '#2F7A34' // same green as the "Paid in full" pill, for
 
 // Display-only formatting — never touches the stored receipt_no/item_snapshot, both of
 // which are frozen historical data (see "Sales" and "Receipt" sections in CLAUDE.md).
+// Matches both the current "MIG-INV-" prefix and the older "MIG_INV-" one (migration_013
+// renamed it going forward, but this stays lenient in case that migration hasn't run yet
+// against a given environment) so the printed receipt always reads e.g. "INV-001".
 function formatReceiptNoForDisplay(receiptNo: string): string {
-  return receiptNo.replace(/^MIG_/, '')
+  return receiptNo.replace(/^MIG[_-]/, '')
 }
 
 // Only the "/" that formatVariantLabel (src/types.ts) inserts right before a trailing

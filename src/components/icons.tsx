@@ -73,6 +73,18 @@ export const InventoryIcon = createSvgIcon(
   'InventoryIcon'
 )
 
+// Clipboard/checklist icon — Inventory nav tab (Low stock + Existing stock page).
+// Deliberately distinct from InventoryIcon's isometric box stack above (that one is
+// Catalog's "product structure" icon) — this one reads as a stock count/audit sheet.
+export const ClipboardListIcon = createSvgIcon(
+  <>
+    <rect {...strokeProps} x="5" y="4" width="14" height="17" rx="2" />
+    <rect {...strokeProps} x="9" y="2" width="6" height="3" rx="1" />
+    <path {...strokeProps} d="M8 10h8M8 14h8M8 18h5" />
+  </>,
+  'ClipboardListIcon'
+)
+
 export const BarChartIcon = createSvgIcon(
   <>
     <path {...strokeProps} d="M3 3v18h18" />

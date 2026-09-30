@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Box, Grid, Paper, Typography, Chip, Stack } from '@mui/material'
 import { alpha, useTheme } from '@mui/material/styles'
 import { useNavigate } from 'react-router-dom'
-import { SellIcon, InventoryIcon, PeopleIcon, WarningIcon, BarChartIcon, SmartToyIcon } from '../components/icons'
+import { SellIcon, InventoryIcon, PeopleIcon, WarningIcon, BarChartIcon, SmartToyIcon, ClipboardListIcon } from '../components/icons'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLongSharp'
 import PaymentsIcon from '@mui/icons-material/PaymentsSharp'
 import TrendingUpIcon from '@mui/icons-material/TrendingUpSharp'
@@ -21,11 +21,11 @@ interface QuickAction {
 
 const ACTIONS: QuickAction[] = [
   { label: 'New sale', icon: <SellIcon fontSize="large" />, path: '/sale/new', accent: true },
+  { label: 'All sales', icon: <ReceiptLongIcon fontSize="large" />, path: '/sales' },
+  { label: 'Sales report', icon: <BarChartIcon fontSize="large" />, path: '/reports' },
   { label: 'Manage stock', icon: <InventoryIcon fontSize="large" />, path: '/stock/add' },
   { label: 'Manage customers', icon: <PeopleIcon fontSize="large" />, path: '/customers' },
-  { label: 'Low stock', icon: <WarningIcon fontSize="large" />, path: '/low-stock' },
-  { label: 'Sales report', icon: <BarChartIcon fontSize="large" />, path: '/reports' },
-  { label: 'All sales', icon: <ReceiptLongIcon fontSize="large" />, path: '/sales' },
+  { label: 'Inventory', icon: <ClipboardListIcon fontSize="large" />, path: '/low-stock' },
   { label: 'Ask MIG', icon: <SmartToyIcon fontSize="large" />, path: '/chat' }
 ]
 
