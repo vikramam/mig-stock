@@ -323,13 +323,17 @@ export default function ProductTypeSizePicker({
                     }}
                   >
                     <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{variantSizeText(v)}</Typography>
-                    <Typography variant="mono" sx={{ fontSize: '0.65rem', opacity: 0.75, display: 'block' }}>
-                      {formatMoney(v.unit_price)}
+                    <Typography
+                      variant="mono"
+                      sx={{ fontSize: '0.78rem', opacity: 0.75, display: 'flex', justifyContent: 'center', gap: '2px' }}
+                    >
+                      <span>Rs.</span>
+                      <span>{formatMoney(v.unit_price).replace(/^Rs\.\s*/, '')}</span>
                     </Typography>
                     <Typography
                       variant="caption"
                       color={stockCellColor(v.current_stock, lowStockThreshold)}
-                      sx={{ fontSize: '0.6rem' }}
+                      sx={{ fontSize: '0.7rem' }}
                     >
                       {v.current_stock <= 0 ? 'Out of stock' : `${v.current_stock} in stock`}
                     </Typography>

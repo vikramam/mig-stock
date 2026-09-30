@@ -20,15 +20,33 @@ import {
   ListItemText,
   ListItemIcon
 } from '@mui/material'
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonthSharp'
+import RestartAltIcon from '@mui/icons-material/RestartAltSharp'
 import { DeleteIcon, AddIcon as PersonAddIcon, ChevronRightIcon, PersonIcon, CheckIcon, BackIcon } from '../components/icons'
 import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants, fetchVariantSalesTotals } from '../lib/supabase'
 import { Customer, VariantWithContext, formatVariantLabel, formatSize } from '../types'
 import CustomerDialog, { CustomerDialogValues } from '../components/sale/CustomerDialog'
 import ReceiptDialog from '../components/sale/ReceiptDialog'
+import SaleSummaryDialog from '../components/sale/SaleSummaryDialog'
 import QtyStepper from '../components/QtyStepper'
 import { FormSkeleton } from '../components/skeletons'
 import BottomSheet from '../components/common/BottomSheet'
 import ProductTypeSizePicker from '../components/catalog/ProductTypeSizePicker'
+
+// Local YYYY-MM-DD (not UTC) — matches what a native <input type="date"> reads/writes,
+// and keeps "today" anchored to the shop's own clock rather than shifting at UTC midnight.
+function todayStr(): string {
+  const d = new Date()
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function formatSaleDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
 
 interface CartLine {
   variant: VariantWithContext
@@ -76,6 +94,10 @@ export default function NewSale() {
 
   const [cart, setCart] = useState<CartLine[]>([])
   const [discountApplied, setDiscountApplied] = useState(false)
+
+  const [saleDate, setSaleDate] = useState(todayStr())
+  const [dateSheetOpen, setDateSheetOpen] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const [amountPaid, setAmountPaid] = useState('')
   const [note, setNote] = useState('')
@@ -183,6 +205,11 @@ export default function NewSale() {
     setCart((prev) => prev.filter((l) => l.variant.id !== variantId))
   }
 
+  function handleResetCart() {
+    setCart([])
+    setDiscountApplied(false)
+  }
+
   async function saveCustomer(values: CustomerDialogValues) {
     setCustomerSaving(true)
     setCustomerError(null)
@@ -231,6 +258,21 @@ export default function NewSale() {
   const balanceDue = Math.max(total - amountPaidPaise, 0)
   const valid = cart.length > 0 && cart.every((l) => l.qty > 0)
 
+  const summaryLines = useMemo(
+    () =>
+      cart.map((line) => ({
+        key: line.variant.id,
+        label: `${line.variant.product_name} · ${line.variant.type_name}`,
+        sizeLabel: line.variant.size_label ?? (line.variant.size !== 0 ? formatSize(line.variant.size ?? 0) : null),
+        qty: line.qty,
+        unitPrice: line.variant.unit_price,
+        discount: lineDiscount(line),
+        lineTotal: lineTotal(line)
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cart, discountApplied]
+  )
+
   async function handleSubmit() {
     if (!valid) return
     setSubmitting(true)
@@ -258,14 +300,26 @@ export default function NewSale() {
       return
     }
 
+    // Back-dating is a rare, deliberate action — commit_sale() always inserts with
+    // created_at = now(), so a chosen past date is applied as a follow-up update rather
+    // than a new RPC parameter. Noon local time keeps the calendar day stable regardless
+    // of the shop's UTC offset.
+    if (saleDate !== todayStr()) {
+      const [y, m, d] = saleDate.split('-').map(Number)
+      const backdated = new Date(y, m - 1, d, 12, 0, 0)
+      await supabase.from('sales').update({ created_at: backdated.toISOString() }).eq('id', saleId)
+    }
+
     const { data: sale } = await supabase.from('sales').select('receipt_no, total, balance_due').eq('id', saleId).single()
 
     setSubmitting(false)
     setSuccess(sale ? { receiptNo: sale.receipt_no, total: sale.total, balanceDue: sale.balance_due } : null)
     setReceiptSaleId(saleId)
+    setSummaryOpen(false)
     setCart([])
     setDiscountApplied(false)
     setSelectedCustomer(null)
+    setSaleDate(todayStr())
     setAmountPaid('')
     setNote('')
     setCreatedBy('')
@@ -312,7 +366,21 @@ export default function NewSale() {
         >
           <BackIcon />
         </IconButton>
-        <Typography variant="h4">New sale</Typography>
+        <Typography variant="h4" sx={{ flex: 1 }}>
+          New sale
+        </Typography>
+        {saleDate !== todayStr() && (
+          <Typography variant="caption" color="warning.main">
+            {formatSaleDateLabel(saleDate)}
+          </Typography>
+        )}
+        <IconButton
+          onClick={() => setDateSheetOpen(true)}
+          aria-label="Back-date this sale"
+          sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5 }}
+        >
+          <CalendarMonthIcon fontSize="small" />
+        </IconButton>
       </Stack>
 
       {prefillNotice && (
@@ -621,8 +689,8 @@ export default function NewSale() {
         }}
       >
         <Box sx={{ maxWidth: 720, mx: 'auto' }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.25 }}>
-            <Stack direction="row" gap={1}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} sx={{ mb: 1.25 }}>
+            <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
               <Button variant="outlined" size="small" onClick={handleApplyDiscount} disabled={discountApplied || cart.length === 0}>
                 {discountApplied ? 'Discount applied' : 'Apply discount'}
               </Button>
@@ -630,6 +698,21 @@ export default function NewSale() {
                 <Button variant="text" size="small" color="error" onClick={handleRemoveDiscount}>
                   Remove
                 </Button>
+              )}
+              {cart.length > 0 && (
+                <>
+                  <Button variant="outlined" size="small" onClick={() => setSummaryOpen(true)}>
+                    Summary
+                  </Button>
+                  <IconButton
+                    size="small"
+                    onClick={handleResetCart}
+                    aria-label="Clear selection"
+                    sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}
+                  >
+                    <RestartAltIcon fontSize="small" />
+                  </IconButton>
+                </>
               )}
             </Stack>
             <Box sx={{ textAlign: 'right' }}>
@@ -704,6 +787,49 @@ export default function NewSale() {
           New customer
         </Button>
       </BottomSheet>
+
+      <BottomSheet open={dateSheetOpen} onClose={() => setDateSheetOpen(false)} title="Sale date">
+        <Stack spacing={2}>
+          <TextField
+            label="Sale date"
+            type="date"
+            value={saleDate}
+            onChange={(e) => {
+              const v = e.target.value
+              if (!v) return
+              setSaleDate(v > todayStr() ? todayStr() : v)
+            }}
+            inputProps={{ max: todayStr() }}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <Typography variant="caption" color="text.secondary">
+            Only needed to back-date a sale entered late — defaults to today. Future dates aren't allowed.
+          </Typography>
+          <Stack direction="row" gap={1}>
+            <Button variant="outlined" fullWidth onClick={() => setSaleDate(todayStr())} disabled={saleDate === todayStr()}>
+              Reset to today
+            </Button>
+            <Button variant="contained" fullWidth onClick={() => setDateSheetOpen(false)}>
+              Done
+            </Button>
+          </Stack>
+        </Stack>
+      </BottomSheet>
+
+      <SaleSummaryDialog
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        customerName={selectedCustomer ? selectedCustomer.name : 'Walk-in customer'}
+        saleDateLabel={saleDate !== todayStr() ? formatSaleDateLabel(saleDate) : null}
+        lines={summaryLines}
+        totalDiscount={totalDiscount}
+        total={total}
+        amountPaid={amountPaidPaise}
+        balanceDue={balanceDue}
+        onConfirm={() => void handleSubmit()}
+        confirming={submitting}
+      />
 
       <CustomerDialog
         open={customerDialogOpen}
