@@ -22,6 +22,8 @@ import {
 } from '@mui/material'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonthSharp'
 import RestartAltIcon from '@mui/icons-material/RestartAltSharp'
+import PercentIcon from '@mui/icons-material/PercentSharp'
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLongSharp'
 import { DeleteIcon, AddIcon as PersonAddIcon, ChevronRightIcon, PersonIcon, CheckIcon, BackIcon } from '../components/icons'
 import { supabase, formatMoney, parseRupeesToPaise, fetchActiveVariants, fetchVariantSalesTotals } from '../lib/supabase'
 import { Customer, VariantWithContext, formatVariantLabel, formatSize } from '../types'
@@ -250,6 +252,11 @@ export default function NewSale() {
 
   function handleRemoveDiscount() {
     setDiscountApplied(false)
+  }
+
+  function handleToggleDiscount() {
+    if (discountApplied) handleRemoveDiscount()
+    else handleApplyDiscount()
   }
 
   const totalDiscount = cart.reduce((sum, l) => sum + lineDiscount(l), 0)
@@ -685,56 +692,73 @@ export default function NewSale() {
           borderColor: 'divider',
           px: 2,
           pt: 1.5,
-          pb: 'calc(12px + env(safe-area-inset-bottom))'
+          pb: 'calc(20px + env(safe-area-inset-bottom))'
         }}
       >
         <Box sx={{ maxWidth: 720, mx: 'auto' }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} sx={{ mb: 1.25 }}>
-            <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-              <Button variant="outlined" size="small" onClick={handleApplyDiscount} disabled={discountApplied || cart.length === 0}>
-                {discountApplied ? 'Discount applied' : 'Apply discount'}
-              </Button>
-              {discountApplied && (
-                <Button variant="text" size="small" color="error" onClick={handleRemoveDiscount}>
-                  Remove
-                </Button>
-              )}
-              {cart.length > 0 && (
-                <>
-                  <Button variant="outlined" size="small" onClick={() => setSummaryOpen(true)}>
-                    Summary
-                  </Button>
-                  <IconButton
-                    size="small"
-                    onClick={handleResetCart}
-                    aria-label="Clear selection"
-                    sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}
-                  >
-                    <RestartAltIcon fontSize="small" />
-                  </IconButton>
-                </>
-              )}
-            </Stack>
-            <Box sx={{ textAlign: 'right' }}>
+          <Stack direction="row" gap={1} sx={{ mb: 1.25 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PercentIcon fontSize="small" />}
+              onClick={handleToggleDiscount}
+              disabled={cart.length === 0}
+              sx={{
+                flex: 1,
+                ...(discountApplied
+                  ? { borderColor: 'primary.main', color: 'primary.main', bgcolor: 'rgba(201,122,43,0.14)' }
+                  : { borderColor: 'divider', color: 'text.secondary' })
+              }}
+            >
+              Discount
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ReceiptLongIcon fontSize="small" />}
+              onClick={() => setSummaryOpen(true)}
+              disabled={cart.length === 0}
+              sx={{ flex: 1, borderColor: 'divider', color: 'text.secondary' }}
+            >
+              Summary
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RestartAltIcon fontSize="small" />}
+              onClick={handleResetCart}
+              disabled={cart.length === 0}
+              sx={{ flex: 1, borderColor: 'divider', color: 'text.secondary' }}
+            >
+              Reset
+            </Button>
+          </Stack>
+          <Stack direction="row" gap={1.5} alignItems="center">
+            <Box sx={{ flexShrink: 0 }}>
               {totalDiscount > 0 && (
                 <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>
                   −{formatMoney(totalDiscount)} discount
                 </Typography>
               )}
-              <Typography variant="mono" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
+              <Typography variant="mono" sx={{ fontWeight: 700, fontSize: '1.05rem', whiteSpace: 'nowrap' }}>
                 {formatMoney(total)}
               </Typography>
+              {balanceDue > 0 && (
+                <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
+                  {formatMoney(balanceDue)} due
+                </Typography>
+              )}
             </Box>
+            <Button
+              variant="contained"
+              size="large"
+              disabled={!valid || submitting}
+              onClick={() => void handleSubmit()}
+              sx={{ flex: 1 }}
+            >
+              Complete sale
+            </Button>
           </Stack>
-          <Button
-            variant="contained"
-            size="large"
-            fullWidth
-            disabled={!valid || submitting}
-            onClick={() => void handleSubmit()}
-          >
-            Complete sale
-          </Button>
         </Box>
       </Box>
 
